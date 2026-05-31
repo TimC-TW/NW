@@ -118,8 +118,9 @@ tr:hover td{background:#fafaf8}
   <div class="chart-box">
     <h3>美股市值 vs 總投入成本</h3>
     <div class="legend">
-      <span><span class="ld" style="background:#1D9E75"></span>1/1 市值 NTD</span>
-      <span><span class="ld" style="background:#D3D1C7"></span>總投入成本 NTD</span>
+      <span><span class="ld" style="background:#1D9E75"></span>市值 NTD</span>
+      <span><span class="ld" style="background:#E8E6DF;border:1px solid #ccc"></span>總投入成本 NTD</span>
+      <span><span class="ld" style="background:#D85A30"></span>年化報酬率（右軸）</span>
     </div>
     <div class="chart-wrap h220"><canvas id="usStockChart"></canvas></div>
   </div>
@@ -198,12 +199,12 @@ const DEBT_KEYS=['朱爸朱媽','信貸','信用卡'];
 const ALLOC_KEYS=['美股','RSU','美金','台股','台幣','小胖台幣 房子','小柏台幣','台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣','房子🏠','車🚗'];
 
 const YEARLY=[
-  {year:'2019',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:null,annualSalaryNTD:192400,tax:2700,saveNTD:72400,cumSave:72400,forecast:false},
-  {year:'2020',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:null,annualSalaryNTD:704700,tax:0,saveNTD:154700,cumSave:227100,forecast:false},
-  {year:'2021',workplace:'Wiwynn',title:'Sr. Engineer (09)',cashSalary:null,annualSalaryNTD:1419030,tax:0,saveNTD:817634,cumSave:1044734,forecast:false},
-  {year:'2022',workplace:'Wiwynn→Apple',title:'Sr.E / ICT3',cashSalary:615141,annualSalaryNTD:2315278,tax:30791,saveNTD:-26313,cumSave:1870421,forecast:false},
-  {year:'2023',workplace:'Apple',title:'ICT3',cashSalary:637622,annualSalaryNTD:3411904,tax:93827,saveNTD:1958879,cumSave:3778458,forecast:false},
-  {year:'2024',workplace:'Apple→Meta',title:'ICT3 / IC4',cashSalary:2142977,annualSalaryNTD:3820771,tax:198585,saveNTD:1652763,cumSave:5431220,forecast:false},
+  {year:'2019',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:192400,annualSalaryNTD:192400,tax:2700,saveNTD:72400,cumSave:72400,forecast:false},
+  {year:'2020',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:704700,annualSalaryNTD:704700,tax:0,saveNTD:154700,cumSave:227100,forecast:false},
+  {year:'2021',workplace:'Wiwynn',title:'Sr. Engineer (09)',cashSalary:1419030,annualSalaryNTD:1419030,tax:0,saveNTD:817634,cumSave:1044734,forecast:false},
+  {year:'2022',workplace:'Wiwynn→Apple',title:'Sr.E / ICT3',cashSalary:2346544,annualSalaryNTD:2315278,tax:Math.round(30791+73238*4.43),saveNTD:825687,cumSave:1870421,forecast:false},
+  {year:'2023',workplace:'Apple',title:'ICT3',cashSalary:2824665,annualSalaryNTD:3411904,tax:Math.round(93827*4.43),saveNTD:1908037,cumSave:3778458,forecast:false},
+  {year:'2024',workplace:'Apple→Meta',title:'ICT3→IC4',cashSalary:3097117,annualSalaryNTD:3820771,tax:Math.round(35745*4.43)+162840,saveNTD:1652763,cumSave:5431220,forecast:false},
   {year:'2025',workplace:'Meta',title:'IC4',cashSalary:3106596,annualSalaryNTD:3919075,tax:328016,saveNTD:1927555,cumSave:7358775,forecast:false},
   {year:'2026',workplace:'Meta',title:'IC4→IC5',cashSalary:4108752,annualSalaryNTD:5222613,tax:650000,saveNTD:2372613,cumSave:9731388,forecast:true},
   {year:'2027',workplace:'Meta',title:'IC5',cashSalary:4240003,annualSalaryNTD:5841159,tax:1000000,saveNTD:2941159,cumSave:12672547,forecast:true},
@@ -241,20 +242,22 @@ function renderInvest(){
   const years=INVEST.filter(r=>r.marketValUSD).map(r=>r.year);
   const mvals=INVEST.filter(r=>r.marketValUSD).map(r=>r.marketValUSD*USD2NTD);
   const costs=INVEST.filter(r=>r.costUSD).map(r=>r.costUSD*USD2NTD);
+  const cagrs=INVEST.filter(r=>r.marketValUSD).map(r=>r.usCAGR!==null?parseFloat((r.usCAGR*100).toFixed(1)):null);
 
   if(usStockChart)usStockChart.destroy();
   usStockChart=new Chart(document.getElementById('usStockChart'),{
     type:'bar',
     data:{labels:years,datasets:[
-      {label:'市值',data:mvals,backgroundColor:'#1D9E75',borderRadius:4,order:2},
-      {label:'成本',data:costs,backgroundColor:'#E8E6DF',borderRadius:4,order:3},
-      {label:'市值折線',data:mvals,type:'line',borderColor:'#1D9E75',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:0.3,order:1},
+      {label:'市值',data:mvals,backgroundColor:'#1D9E75',borderRadius:4,order:2,yAxisID:'y'},
+      {label:'成本',data:costs,backgroundColor:'#E8E6DF',borderRadius:4,order:3,yAxisID:'y'},
+      {label:'年化報酬',data:cagrs,type:'line',borderColor:'#D85A30',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#D85A30',tension:0.3,order:1,yAxisID:'y2'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label==='年化報酬'?` ${c.parsed.y}%`:' $'+fmt(c.parsed.y)+' NTD'}}},
       scales:{
         x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
-        y:{ticks:{font:{size:10},color:'#888780',callback:v=>fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}},
+        y2:{position:'right',ticks:{font:{size:10},color:'#D85A30',callback:v=>v+'%'},grid:{display:false}}
       }}
   });
 
