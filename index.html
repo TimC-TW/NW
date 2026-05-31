@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資產動態追蹤</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#2C2C2A;min-height:100vh}
+.app{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
+h1{font-size:18px;font-weight:500;margin-bottom:1.5rem}
+.tabs{display:flex;border-bottom:1px solid #D3D1C7;margin-bottom:1.5rem}
+.tab{background:none;border:none;padding:9px 18px;font-size:13px;color:#888780;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:#2C2C2A;border-bottom-color:#2C2C2A;font-weight:500}
+.section{display:none}.section.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1.5rem}
+.card{background:#fff;border-radius:8px;padding:.85rem 1rem;border:1px solid #E8E6DF}
+.card-label{font-size:11px;color:#888780;margin-bottom:3px}
+.card-value{font-size:18px;font-weight:500}
+.card-sub{font-size:11px;margin-top:2px}
+.pos{color:#0F6E56}.neg{color:#A32D2D}.muted{color:#888780}
+.chart-box{background:#fff;border-radius:8px;border:1px solid #E8E6DF;padding:1rem;margin-bottom:1.25rem}
+.chart-box h3{font-size:12px;color:#888780;font-weight:400;margin-bottom:.75rem}
+.chart-wrap{position:relative;width:100%}
+.h220{height:220px}.h260{height:260px}.h200{height:200px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11px;color:#888780}
+.legend span{display:flex;align-items:center;gap:4px}
+.ld{width:10px;height:10px;border-radius:2px;display:inline-block}
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;align-items:center;flex-wrap:wrap}
+.toolbar-right{margin-left:auto;display:flex;gap:6px}
+input[type=number],input[type=date],select{padding:6px 10px;font-size:13px;border:1px solid #D3D1C7;border-radius:6px;background:#fff;color:#2C2C2A;width:100%}
+input:focus,select:focus{outline:none;border-color:#888780}
+.btn{padding:6px 14px;font-size:12px;border:1px solid #D3D1C7;border-radius:6px;cursor:pointer;background:#fff;color:#2C2C2A;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{background:#f5f5f3}
+.btn-primary{background:#2C2C2A;color:#fff;border-color:transparent}.btn-primary:hover{background:#444441}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-danger{color:#A32D2D;border-color:#F7C1C1}.btn-danger:hover{background:#FCEBEB}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;border:1px solid #E8E6DF;overflow:hidden}
+th{text-align:left;padding:8px 12px;border-bottom:1px solid #E8E6DF;color:#888780;font-weight:400;font-size:11px;white-space:nowrap;background:#fafaf8}
+td{padding:8px 12px;border-bottom:1px solid #f0ede6;color:#2C2C2A}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafaf8}
+.group-label{font-size:11px;color:#888780;margin:14px 0 6px;font-weight:500;border-bottom:1px solid #E8E6DF;padding-bottom:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.fl{display:flex;flex-direction:column;gap:3px}
+.fl label{font-size:11px;color:#888780}
+.snap-form{background:#fff;border-radius:8px;border:1px solid #E8E6DF;padding:1.25rem}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:flex-start;justify-content:center;z-index:100;padding-top:3rem;overflow-y:auto}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:12px;border:1px solid #E8E6DF;padding:1.5rem;width:min(540px,94%);margin-bottom:2rem}
+.modal h3{font-size:15px;font-weight:500;margin-bottom:1.2rem}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1.2rem}
+.empty{text-align:center;padding:2.5rem;color:#888780;font-size:13px}
+.diff-sm{font-size:11px}
+.forecast-note{font-size:11px;color:#888780;display:inline-block;padding:2px 7px;background:#F1EFE8;border-radius:4px;margin-left:6px}
+@media(max-width:600px){.grid3{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>💰 資產動態追蹤</h1>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('overview')">總覽</button>
+  <button class="tab" onclick="switchTab('salary')">薪資分析</button>
+  <button class="tab" onclick="switchTab('invest')">投資分析</button>
+  <button class="tab" onclick="switchTab('snapshot')">記錄快照</button>
+  <button class="tab" onclick="switchTab('history')">歷史</button>
+</div>
+
+<!-- 總覽 -->
+<div id="tab-overview" class="section active">
+  <div class="cards" id="sum-cards"></div>
+  <div class="chart-box">
+    <h3>資產總額走勢（依真實時間間隔）</h3>
+    <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>Total NTD</span></div>
+    <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
+  </div>
+</div>
+
+<!-- 薪資分析 -->
+<div id="tab-salary" class="section">
+  <div class="cards" id="salary-cards"></div>
+  <div class="chart-box">
+    <h3>年度薪資（現金 + 總包含RSU，實線=實際，虛線=預測）</h3>
+    <div class="legend">
+      <span><span class="ld" style="background:#1D9E75"></span>現金薪資 NTD</span>
+      <span><span class="ld" style="background:#378ADD"></span>年度總薪酬 NTD</span>
+    </div>
+    <div class="chart-wrap h260"><canvas id="salaryChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>年度儲蓄 vs 資產總額</h3>
+    <div class="legend">
+      <span><span class="ld" style="background:#BA7517"></span>年度儲蓄 NTD</span>
+      <span><span class="ld" style="background:#1D9E75"></span>Dynamic Total NTD</span>
+    </div>
+    <div class="chart-wrap h260"><canvas id="saveChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>年化資產成長率（基於 Dynamic Total，實線=實際，虛線=預測）</h3>
+    <div class="legend"><span><span class="ld" style="background:#D85A30"></span>YoY 成長率 %</span></div>
+    <div class="chart-wrap h200"><canvas id="cagrChart"></canvas></div>
+  </div>
+  <div class="chart-box" style="overflow-x:auto">
+    <h3>薪資明細表</h3>
+    <table>
+      <thead><tr><th>年份</th><th>公司</th><th>職級</th><th>現金薪資</th><th>年度總薪酬</th><th>稅</th><th>年度儲蓄</th></tr></thead>
+      <tbody id="salary-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 投資分析 -->
+<div id="tab-invest" class="section">
+  <div class="cards" id="invest-cards"></div>
+  <div class="chart-box">
+    <h3>美股市值 vs 總投入成本</h3>
+    <div class="legend">
+      <span><span class="ld" style="background:#1D9E75"></span>1/1 市值 NTD</span>
+      <span><span class="ld" style="background:#D3D1C7"></span>總投入成本 NTD</span>
+    </div>
+    <div class="chart-wrap h220"><canvas id="usStockChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>年度投資獲利（美股 + 台股交易 + 配息）</h3>
+    <div class="legend">
+      <span><span class="ld" style="background:#378ADD"></span>美股獲利</span>
+      <span><span class="ld" style="background:#BA7517"></span>台股交易獲利</span>
+      <span><span class="ld" style="background:#1D9E75"></span>配息</span>
+    </div>
+    <div class="chart-wrap h220"><canvas id="profitChart"></canvas></div>
+  </div>
+
+  <div class="chart-box" style="overflow-x:auto">
+    <h3>投資明細表</h3>
+    <table>
+      <thead><tr><th>年份</th><th>美股市值</th><th>總投入</th><th>美股獲利</th><th>年化報酬</th><th>台股交易獲利</th><th>配息</th><th>合計獲利</th></tr></thead>
+      <tbody id="invest-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 記錄快照 -->
+<div id="tab-snapshot" class="section">
+  <div class="snap-form">
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="fl"><label>日期</label><input type="date" id="snap-date"></div>
+    </div>
+    <div id="snap-fields"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem">
+      <button class="btn btn-primary" onclick="saveSnap()"><i class="ti ti-camera"></i> 儲存快照</button>
+    </div>
+  </div>
+</div>
+
+<!-- 歷史 -->
+<div id="tab-history" class="section">
+  <div class="toolbar">
+    <div class="toolbar-right">
+      <button class="btn btn-sm" onclick="exportJSON()"><i class="ti ti-download"></i> 匯出 JSON</button>
+      <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> 匯入 JSON<input type="file" accept=".json" style="display:none;width:auto;border:none" onchange="importJSON(event)"></label>
+    </div>
+  </div>
+  <table>
+    <thead id="hist-head"></thead>
+    <tbody id="hist-body"></tbody>
+  </table>
+</div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitModal()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+const FIELDS=[
+  {key:'美股',group:'流動資產'},{key:'RSU',group:'流動資產'},{key:'美金',group:'流動資產'},
+  {key:'台股',group:'流動資產'},{key:'台幣',group:'流動資產'},{key:'小胖台幣 房子',group:'流動資產'},
+  {key:'小柏台幣',group:'流動資產'},{key:'台灣的人民幣',group:'流動資產'},
+  {key:'中國人民幣(bank)',group:'流動資產'},{key:'小胖人民幣/台幣',group:'流動資產'},
+  {key:'房子🏠',group:'固定資產'},{key:'車🚗',group:'固定資產'},
+  {key:'ESPP 3538/3722',group:'沒在手上'},{key:'TEP 6000',group:'沒在手上'},
+  {key:'Insurance 2923',group:'沒在手上'},{key:'Medical + Pension 2123/2233 + 683',group:'沒在手上'},
+  {key:'朱爸朱媽',group:'負債'},{key:'信貸',group:'負債'},{key:'信用卡',group:'負債'},
+];
+const DEBT_KEYS=['朱爸朱媽','信貸','信用卡'];
+const ALLOC_KEYS=['美股','RSU','美金','台股','台幣','小胖台幣 房子','小柏台幣','台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣','房子🏠','車🚗'];
+
+const YEARLY=[
+  {year:'2019',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:null,annualSalaryNTD:192400,tax:2700,saveNTD:72400,cumSave:72400,forecast:false},
+  {year:'2020',workplace:'Wiwynn',title:'Engineer (08)',cashSalary:null,annualSalaryNTD:704700,tax:0,saveNTD:154700,cumSave:227100,forecast:false},
+  {year:'2021',workplace:'Wiwynn',title:'Sr. Engineer (09)',cashSalary:null,annualSalaryNTD:1419030,tax:0,saveNTD:817634,cumSave:1044734,forecast:false},
+  {year:'2022',workplace:'Wiwynn→Apple',title:'Sr.E / ICT3',cashSalary:615141,annualSalaryNTD:2315278,tax:30791,saveNTD:-26313,cumSave:1870421,forecast:false},
+  {year:'2023',workplace:'Apple',title:'ICT3',cashSalary:637622,annualSalaryNTD:3411904,tax:93827,saveNTD:1958879,cumSave:3778458,forecast:false},
+  {year:'2024',workplace:'Apple→Meta',title:'ICT3 / IC4',cashSalary:2142977,annualSalaryNTD:3820771,tax:198585,saveNTD:1652763,cumSave:5431220,forecast:false},
+  {year:'2025',workplace:'Meta',title:'IC4',cashSalary:3106596,annualSalaryNTD:3919075,tax:328016,saveNTD:1927555,cumSave:7358775,forecast:false},
+  {year:'2026',workplace:'Meta',title:'IC4→IC5',cashSalary:4108752,annualSalaryNTD:5222613,tax:650000,saveNTD:2372613,cumSave:9731388,forecast:true},
+  {year:'2027',workplace:'Meta',title:'IC5',cashSalary:4240003,annualSalaryNTD:5841159,tax:1000000,saveNTD:2941159,cumSave:12672547,forecast:true},
+  {year:'2028',workplace:'Meta',title:'IC5',cashSalary:4392064,annualSalaryNTD:6376570,tax:643730,saveNTD:3732840,cumSave:16405387,forecast:true},
+  {year:'2029',workplace:'Meta',title:'IC5',cashSalary:4543365,annualSalaryNTD:6592207,tax:705139,saveNTD:3887068,cumSave:20292455,forecast:true},
+  {year:'2030',workplace:'Meta',title:'IC5',cashSalary:4699965,annualSalaryNTD:7098984,tax:781975,saveNTD:4317009,cumSave:24609464,forecast:true},
+];
+
+const INVEST=[
+  {year:'2020',marketVal:null,cost:null,usProfit:null,usCAGR:null,twProfit:61616,dividend:0,sum:61616},
+  {year:'2021',marketVal:7200,cost:7200,usProfit:-18,usCAGR:-0.0025,twProfit:-132472,dividend:0,sum:-133039},
+  {year:'2022',marketVal:7182,cost:24900,usProfit:-9098,usCAGR:-0.365,twProfit:-63600,dividend:0,sum:-350187},
+  {year:'2023',marketVal:15784,cost:47819,usProfit:33046,usCAGR:1.854,twProfit:2782,dividend:6640,sum:1050371},
+  {year:'2024',marketVal:71749,cost:47819,usProfit:48486,usCAGR:1.676,twProfit:72216,dividend:79640,sum:1679165},
+  {year:'2025',marketVal:120235,cost:97232,usProfit:66133,usCAGR:1.421,twProfit:3739,dividend:17790,sum:2104718},
+  {year:'2026',marketVal:241018,cost:110232,usProfit:139893,usCAGR:1.580,twProfit:216690,dividend:0,sum:4623319},
+];
+
+
+let usStockChart=null,profitChart=null;
+
+function renderInvest(){
+  const last=INVEST[INVEST.length-2]; // 2025 as latest actual
+  const totalProfit=INVEST.reduce((s,r)=>s+(r.usProfit||0),0);
+  const totalTW=INVEST.reduce((s,r)=>s+(r.twProfit||0),0);
+  const totalDiv=INVEST.reduce((s,r)=>s+(r.dividend||0),0);
+
+  document.getElementById('invest-cards').innerHTML=`
+    <div class="card"><div class="card-label">美股市值 (2025)</div><div class="card-value">$${fmt(last.marketVal*10000||0)}</div></div>
+    <div class="card"><div class="card-label">美股累計獲利</div><div class="card-value pos">$${fmt(totalProfit)}</div></div>
+    <div class="card"><div class="card-label">台股累計獲利</div><div class="card-value ${totalTW>=0?'pos':'neg'}">${totalTW>=0?'+':''} $${fmt(totalTW)}</div></div>
+    <div class="card"><div class="card-label">累計配息</div><div class="card-value pos">$${fmt(totalDiv)}</div></div>`;
+
+  const years=INVEST.filter(r=>r.marketVal).map(r=>r.year);
+  const mvals=INVEST.filter(r=>r.marketVal).map(r=>r.marketVal);
+  const costs=INVEST.filter(r=>r.cost).map(r=>r.cost);
+
+  if(usStockChart)usStockChart.destroy();
+  usStockChart=new Chart(document.getElementById('usStockChart'),{
+    type:'bar',
+    data:{labels:years,datasets:[
+      {label:'市值',data:mvals,backgroundColor:'#1D9E75',borderRadius:4,order:2},
+      {label:'成本',data:costs,backgroundColor:'#E8E6DF',borderRadius:4,order:3},
+      {label:'市值折線',data:mvals,type:'line',borderColor:'#1D9E75',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:0.3,order:1},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y*10000)+' NTD'}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>fmtK(v*10000)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  const pyears=INVEST.filter(r=>r.usProfit!==null).map(r=>r.year);
+  if(profitChart)profitChart.destroy();
+  profitChart=new Chart(document.getElementById('profitChart'),{
+    type:'bar',
+    data:{labels:pyears,datasets:[
+      {label:'美股獲利',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.usProfit),backgroundColor:INVEST.filter(r=>r.usProfit!==null).map(r=>(r.usProfit||0)>=0?'#378ADD':'#A32D2D'),borderRadius:4,stack:'s'},
+      {label:'台股交易',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.twProfit||0),backgroundColor:INVEST.filter(r=>r.usProfit!==null).map(r=>(r.twProfit||0)>=0?'#BA7517':'#D85A30'),borderRadius:4,stack:'s'},
+      {label:'配息',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.dividend||0),backgroundColor:'#1D9E75',borderRadius:4,stack:'s'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  document.getElementById('invest-table').innerHTML=INVEST.map(r=>`
+    <tr>
+      <td><strong>${r.year}</strong></td>
+      <td>${r.marketVal?'$'+fmt(r.marketVal*10000):'—'}</td>
+      <td>${r.cost?'$'+fmt(r.cost*10000):'—'}</td>
+      <td class="${(r.usProfit||0)>=0?'pos':'neg'}">${r.usProfit!==null?(r.usProfit>=0?'+':'')+' $'+fmt(r.usProfit):'—'}</td>
+      <td class="${(r.usCAGR||0)>=0?'pos':'neg'}">${r.usCAGR!==null?((r.usCAGR)*100).toFixed(1)+'%':'—'}</td>
+      <td class="${(r.twProfit||0)>=0?'pos':'neg'}">${(r.twProfit>=0?'+':'')+' $'+fmt(r.twProfit)}</td>
+      <td>$${fmt(r.dividend||0)}</td>
+      <td class="${(r.sum||0)>=0?'pos':'neg'}"><strong>${(r.sum>=0?'+':'')+' $'+fmt(r.sum)}</strong></td>
+    </tr>`).join('');
+}
+
+let trendChart=null,salaryChart=null,saveChart=null,cagrChart=null;
+
+function save(){localStorage.setItem('dynamic_snapshots',JSON.stringify(snapshots));}
+function fmt(n){return Math.round(n).toLocaleString();}
+function fmtK(n){return n>=10000?Math.round(n/10000)+'萬':fmt(n);}
+
+function calcTotal(s){
+  if(s._total!==undefined)return s._total;
+  let t=0;
+  FIELDS.forEach(f=>{const v=s[f.key]||0;t+=f.group==='負債'?-Math.abs(v):v;});
+  return t;
+}
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['overview','salary','invest','snapshot','history'][i]===t));
+  document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='overview')renderOverview();
+  if(t==='salary')renderSalary();
+  if(t==='invest')renderInvest();
+  if(t==='snapshot')renderSnapForm();
+  if(t==='history')renderHistory();
+}
+
+/* ── 總覽 ── */
+function renderOverview(){
+  if(!snapshots.length){document.getElementById('sum-cards').innerHTML='<div class="empty">尚無資料，請先記錄一筆快照或匯入 JSON</div>';return;}
+  const last=snapshots[snapshots.length-1];
+  const prev=snapshots.length>1?snapshots[snapshots.length-2]:null;
+  const total=calcTotal(last),prevT=prev?calcTotal(prev):0,diff=total-prevT;
+  const liquid=ALLOC_KEYS.slice(0,10).reduce((s,k)=>s+(last[k]||0),0);
+  const fixed=(last['房子🏠']||0)+(last['車🚗']||0);
+  const debt=DEBT_KEYS.reduce((s,k)=>s+Math.abs(last[k]||0),0);
+
+  // CAGR from first snapshot
+  const first=snapshots[0];
+  const firstTotal=calcTotal(first);
+  const years=(new Date(last.date)-new Date(first.date))/(365.25*24*3600*1000);
+  const cagr=years>0?((Math.pow(total/firstTotal,1/years)-1)*100):0;
+
+  document.getElementById('sum-cards').innerHTML=`
+    <div class="card"><div class="card-label">總資產 NTD</div><div class="card-value">$${fmt(total)}</div>
+      <div class="card-sub ${diff>=0?'pos':'neg'}">${prev?(diff>=0?'▲':'▼')+' $'+fmt(Math.abs(diff)):''}</div></div>
+    <div class="card"><div class="card-label">流動資產</div><div class="card-value">$${fmt(liquid)}</div></div>
+    <div class="card"><div class="card-label">固定資產</div><div class="card-value">$${fmt(fixed)}</div></div>
+    <div class="card"><div class="card-label">負債</div><div class="card-value neg">-$${fmt(debt)}</div></div>
+    <div class="card"><div class="card-label">年化成長率</div><div class="card-value pos">${cagr.toFixed(1)}%</div><div class="card-sub muted">since ${first.date}</div></div>
+    <div class="card"><div class="card-label">最後更新</div><div class="card-value" style="font-size:13px">${last.date}</div></div>`;
+
+  if(trendChart)trendChart.destroy();
+  const tdata=snapshots.map(s=>({x:s.date,y:calcTotal(s)}));
+  trendChart=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{datasets:[{label:'Total',data:tdata,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.07)',borderWidth:2,fill:true,tension:0.3,pointRadius:tdata.length>30?0:3,pointHoverRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      scales:{
+        x:{type:tdata.length>1?'time':'category',time:{unit:'month',displayFormats:{month:'yy/MM'}},ticks:{font:{size:10},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+}
+
+/* ── 薪資分析 ── */
+function renderSalary(){
+  const actual=YEARLY.filter(y=>!y.forecast);
+  const allYears=YEARLY.map(y=>y.year);
+
+  // Summary cards
+  const lastActual=actual[actual.length-1];
+  const firstActual=actual[0];
+  const salYears=actual.length-1;
+  const salCAGR=salYears>0?((Math.pow(lastActual.annualSalaryNTD/firstActual.annualSalaryNTD,1/salYears)-1)*100):0;
+  const dynByYear={};
+  snapshots.forEach(s=>{const y=s.date.slice(0,4);if(!dynByYear[y]||s.date>dynByYear[y].date)dynByYear[y]=s;});
+
+  document.getElementById('salary-cards').innerHTML=`
+    <div class="card"><div class="card-label">2025 現金薪資</div><div class="card-value">$${fmtK(lastActual.cashSalary||lastActual.annualSalaryNTD)}</div></div>
+    <div class="card"><div class="card-label">薪資年化成長</div><div class="card-value pos">${salCAGR.toFixed(1)}%</div><div class="card-sub muted">2019→2025</div></div>
+    <div class="card"><div class="card-label">2026 預測現金</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2026').cashSalary)}</div></div>
+    <div class="card"><div class="card-label">2030 預測總薪酬</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2030').annualSalaryNTD)}</div></div>`;
+
+  // Salary bar chart — actual solid, forecast dashed via segment
+  const cashData=YEARLY.map(y=>y.cashSalary||y.annualSalaryNTD);
+  const annualData=YEARLY.map(y=>y.annualSalaryNTD);
+  const cutIdx=YEARLY.findIndex(y=>y.forecast); // first forecast index
+
+  if(salaryChart)salaryChart.destroy();
+  salaryChart=new Chart(document.getElementById('salaryChart'),{
+    type:'bar',
+    data:{
+      labels:allYears,
+      datasets:[
+        {label:'現金薪資',data:cashData,backgroundColor:allYears.map((_,i)=>i<cutIdx?'#1D9E75':'rgba(29,158,117,0.35)'),borderRadius:4,order:2},
+        {label:'年度總薪酬',data:annualData,type:'line',borderColor:'#378ADD',backgroundColor:'transparent',borderWidth:2,pointRadius:3,
+          segment:{borderDash:ctx=>ctx.p0DataIndex>=cutIdx-1?[5,4]:[]},tension:0.3,order:1},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  // Save vs Dynamic Total
+  const saveYears=YEARLY.filter(y=>!y.forecast).map(y=>y.year);
+  const saveVals=YEARLY.filter(y=>!y.forecast).map(y=>y.saveNTD||0);
+  const dynVals=saveYears.map(y=>{const s=dynByYear[y];return s?calcTotal(s):null;});
+
+  if(saveChart)saveChart.destroy();
+  saveChart=new Chart(document.getElementById('saveChart'),{
+    type:'bar',
+    data:{
+      labels:saveYears,
+      datasets:[
+        {label:'年度儲蓄',data:saveVals,backgroundColor:'#BA7517',borderRadius:4,order:2},
+        {label:'Dynamic Total',data:dynVals,type:'line',borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.08)',fill:true,borderWidth:2,pointRadius:4,tension:0.3,order:1},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  // YoY CAGR from Dynamic
+  const cagrYears=[],cagrVals=[],cagrColors=[];
+  const dynSorted=snapshots.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const yearEnds={};
+  dynSorted.forEach(s=>{const y=s.date.slice(0,4);yearEnds[y]=s;});
+  const yk=Object.keys(yearEnds).sort();
+  for(let i=1;i<yk.length;i++){
+    const y=yk[i],py=yk[i-1];
+    const t=calcTotal(yearEnds[y]),pt=calcTotal(yearEnds[py]);
+    if(pt>0){
+      const g=((t/pt)-1)*100;
+      cagrYears.push(y);cagrVals.push(parseFloat(g.toFixed(1)));
+      cagrColors.push(g>=0?'#1D9E75':'#A32D2D');
+    }
+  }
+  if(cagrChart)cagrChart.destroy();
+  cagrChart=new Chart(document.getElementById('cagrChart'),{
+    type:'bar',
+    data:{labels:cagrYears,datasets:[{label:'YoY %',data:cagrVals,backgroundColor:cagrColors,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.y.toFixed(1)}%`}}},
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>v+'%'},grid:{color:'rgba(0,0,0,0.05)'},
+           afterDataLimits:axis=>{axis.max=Math.max(axis.max,10);}}
+      }}
+  });
+
+  // Table
+  document.getElementById('salary-table').innerHTML=YEARLY.map(y=>`
+    <tr>
+      <td><strong>${y.year}</strong>${y.forecast?'<span class="forecast-note">預測</span>':''}</td>
+      <td style="color:#888780;font-size:12px">${y.workplace}</td>
+      <td style="color:#888780;font-size:12px">${y.title.split('\n')[0]}</td>
+      <td>$${fmt(y.cashSalary||0)}</td>
+      <td>$${fmt(y.annualSalaryNTD)}</td>
+      <td style="color:#888780">$${fmt(y.tax||0)}</td>
+      <td class="${(y.saveNTD||0)>=0?'pos':'neg'}">$${fmt(y.saveNTD||0)}</td>
+    </tr>`).join('');
+}
+
+/* ── 快照表單 ── */
+function renderSnapForm(){
+  const last=snapshots.length?snapshots[snapshots.length-1]:{};
+  document.getElementById('snap-date').value=new Date().toISOString().slice(0,10);
+  const groups=[...new Set(FIELDS.map(f=>f.group))];
+  let html='';
+  groups.forEach(g=>{
+    html+=`<div class="group-label">${g}</div><div class="grid3">`;
+    FIELDS.filter(f=>f.group===g).forEach(f=>{
+      html+=`<div class="fl"><label>${f.key}</label><input type="number" id="sf-${f.key.replace(/[^\w]/g,'_')}" value="${last[f.key]||0}"></div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById('snap-fields').innerHTML=html;
+}
+
+function saveSnap(){
+  const date=document.getElementById('snap-date').value;
+  if(!date){alert('請選擇日期');return;}
+  const snap={date};
+  FIELDS.forEach(f=>{snap[f.key]=parseFloat(document.getElementById('sf-'+f.key.replace(/[^\w]/g,'_')).value)||0;});
+  const ex=snapshots.findIndex(s=>s.date===date);
+  if(ex>=0){if(!confirm('此日期已有快照，確定覆蓋？'))return;snapshots[ex]=snap;}
+  else snapshots.push(snap);
+  snapshots.sort((a,b)=>a.date.localeCompare(b.date));
+  save();alert('已儲存！');switchTab('overview');
+}
+
+/* ── 歷史 ── */
+function renderHistory(){
+  if(!snapshots.length){
+    document.getElementById('hist-head').innerHTML='';
+    document.getElementById('hist-body').innerHTML='<tr><td colspan="6" class="empty">尚無快照</td></tr>';
+    return;
+  }
+  document.getElementById('hist-head').innerHTML='<tr><th>日期</th><th>流動資產</th><th>固定資產</th><th>負債</th><th>Total NTD</th><th></th></tr>';
+  document.getElementById('hist-body').innerHTML=snapshots.slice().reverse().map((s,i)=>{
+    const idx=snapshots.length-1-i;
+    const total=calcTotal(s),prev=idx>0?calcTotal(snapshots[idx-1]):null,diff=prev!==null?total-prev:null;
+    const liquid=ALLOC_KEYS.slice(0,10).reduce((a,k)=>a+(s[k]||0),0);
+    const fixed=(s['房子🏠']||0)+(s['車🚗']||0);
+    const debt=DEBT_KEYS.reduce((a,k)=>a+Math.abs(s[k]||0),0);
+    return`<tr>
+      <td><strong>${s.date}</strong></td>
+      <td>$${fmt(liquid)}</td><td>$${fmt(fixed)}</td>
+      <td class="neg">-$${fmt(debt)}</td>
+      <td><strong>$${fmt(total)}</strong>${diff!==null?`<br><span class="diff-sm ${diff>=0?'pos':'neg'}">${diff>=0?'▲':'▼'} $${fmt(Math.abs(diff))}</span>`:''}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="editSnap(${idx})" style="margin-right:4px"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteSnap(${idx})"><i class="ti ti-trash"></i></button>
+      </td></tr>`;
+  }).join('');
+}
+
+function editSnap(idx){
+  const s=snapshots[idx];
+  const groups=[...new Set(FIELDS.map(f=>f.group))];
+  let html=`<div class="grid2" style="margin-bottom:14px"><div class="fl"><label>日期</label><input type="date" id="es-date" value="${s.date}"></div></div>`;
+  groups.forEach(g=>{
+    html+=`<div class="group-label">${g}</div><div class="grid3">`;
+    FIELDS.filter(f=>f.group===g).forEach(f=>{html+=`<div class="fl"><label>${f.key}</label><input type="number" id="es-${f.key.replace(/[^\w]/g,'_')}" value="${s[f.key]||0}"></div>`;});
+    html+='</div>';
+  });
+  document.getElementById('modal-title').textContent='編輯快照 '+s.date;
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-bg').dataset.idx=idx;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal(){document.getElementById('modal-bg').classList.remove('open');}
+function submitModal(){
+  const idx=parseInt(document.getElementById('modal-bg').dataset.idx);
+  const snap={date:document.getElementById('es-date').value};
+  FIELDS.forEach(f=>{snap[f.key]=parseFloat(document.getElementById('es-'+f.key.replace(/[^\w]/g,'_')).value)||0;});
+  snapshots[idx]=snap;snapshots.sort((a,b)=>a.date.localeCompare(b.date));
+  save();closeModal();renderHistory();
+}
+function deleteSnap(idx){if(!confirm('確定刪除此快照？'))return;snapshots.splice(idx,1);save();renderHistory();}
+
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(snapshots,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='dynamic_assets_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      snapshots=Array.isArray(data)?data:(data.snapshots||[]);
+      snapshots.sort((a,b)=>a.date.localeCompare(b.date));
+      save();renderOverview();alert('匯入成功！共 '+snapshots.length+' 筆快照');
+    }catch{alert('JSON 格式錯誤');}
+  };
+  r.readAsText(file);
+}
+
+renderOverview();
+document.getElementById('snap-date').value=new Date().toISOString().slice(0,10);
+</script>
+</body>
+</html>
