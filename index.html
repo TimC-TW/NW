@@ -213,33 +213,34 @@ const YEARLY=[
 ];
 
 const INVEST=[
-  {year:'2020',marketVal:null,cost:null,usProfit:null,usCAGR:null,twProfit:61616,dividend:0,sum:61616},
-  {year:'2021',marketVal:7200,cost:7200,usProfit:-18,usCAGR:-0.0025,twProfit:-132472,dividend:0,sum:-133039},
-  {year:'2022',marketVal:7182,cost:24900,usProfit:-9098,usCAGR:-0.365,twProfit:-63600,dividend:0,sum:-350187},
-  {year:'2023',marketVal:15784,cost:47819,usProfit:33046,usCAGR:1.854,twProfit:2782,dividend:6640,sum:1050371},
-  {year:'2024',marketVal:71749,cost:47819,usProfit:48486,usCAGR:1.676,twProfit:72216,dividend:79640,sum:1679165},
-  {year:'2025',marketVal:120235,cost:97232,usProfit:66133,usCAGR:1.421,twProfit:3739,dividend:17790,sum:2104718},
-  {year:'2026',marketVal:241018,cost:110232,usProfit:139893,usCAGR:1.580,twProfit:216690,dividend:0,sum:4623319},
+  {year:'2020',marketValUSD:null,costUSD:null,usProfitUSD:null,usCAGR:null,twProfit:61616,dividend:0,sum:61616},
+  {year:'2021',marketValUSD:7200,costUSD:7200,usProfitUSD:-18,usCAGR:-0.0025,twProfit:-132472,dividend:0,sum:-133039},
+  {year:'2022',marketValUSD:7182,costUSD:24900,usProfitUSD:-9098,usCAGR:-0.365,twProfit:-63600,dividend:0,sum:-350187},
+  {year:'2023',marketValUSD:15784,costUSD:47819,usProfitUSD:33046,usCAGR:1.854,twProfit:2782,dividend:6640,sum:1050371},
+  {year:'2024',marketValUSD:71749,costUSD:47819,usProfitUSD:48486,usCAGR:1.676,twProfit:72216,dividend:79640,sum:1679165},
+  {year:'2025',marketValUSD:120235,costUSD:97232,usProfitUSD:66133,usCAGR:1.421,twProfit:3739,dividend:17790,sum:2104718},
+  {year:'2026',marketValUSD:241018,costUSD:110232,usProfitUSD:139893,usCAGR:1.580,twProfit:216690,dividend:0,sum:4623319},
 ];
+const USD2NTD=32.5;
 
 
 let usStockChart=null,profitChart=null;
 
 function renderInvest(){
-  const last=INVEST[INVEST.length-2]; // 2025 as latest actual
-  const totalProfit=INVEST.reduce((s,r)=>s+(r.usProfit||0),0);
+  const last=INVEST[INVEST.length-2];
+  const totalUsProfitNTD=INVEST.reduce((s,r)=>s+(r.usProfitUSD||0)*USD2NTD,0);
   const totalTW=INVEST.reduce((s,r)=>s+(r.twProfit||0),0);
   const totalDiv=INVEST.reduce((s,r)=>s+(r.dividend||0),0);
 
   document.getElementById('invest-cards').innerHTML=`
-    <div class="card"><div class="card-label">美股市值 (2025)</div><div class="card-value">$${fmt(last.marketVal*10000||0)}</div></div>
-    <div class="card"><div class="card-label">美股累計獲利</div><div class="card-value pos">$${fmt(totalProfit)}</div></div>
+    <div class="card"><div class="card-label">美股市值 (2025)</div><div class="card-value">$${fmt((last.marketValUSD||0)*USD2NTD)}</div></div>
+    <div class="card"><div class="card-label">美股累計獲利</div><div class="card-value pos">$${fmt(totalUsProfitNTD)}</div></div>
     <div class="card"><div class="card-label">台股累計獲利</div><div class="card-value ${totalTW>=0?'pos':'neg'}">${totalTW>=0?'+':''} $${fmt(totalTW)}</div></div>
     <div class="card"><div class="card-label">累計配息</div><div class="card-value pos">$${fmt(totalDiv)}</div></div>`;
 
-  const years=INVEST.filter(r=>r.marketVal).map(r=>r.year);
-  const mvals=INVEST.filter(r=>r.marketVal).map(r=>r.marketVal);
-  const costs=INVEST.filter(r=>r.cost).map(r=>r.cost);
+  const years=INVEST.filter(r=>r.marketValUSD).map(r=>r.year);
+  const mvals=INVEST.filter(r=>r.marketValUSD).map(r=>r.marketValUSD*USD2NTD);
+  const costs=INVEST.filter(r=>r.costUSD).map(r=>r.costUSD*USD2NTD);
 
   if(usStockChart)usStockChart.destroy();
   usStockChart=new Chart(document.getElementById('usStockChart'),{
@@ -250,21 +251,22 @@ function renderInvest(){
       {label:'市值折線',data:mvals,type:'line',borderColor:'#1D9E75',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:0.3,order:1},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y*10000)+' NTD'}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
       scales:{
         x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
-        y:{ticks:{font:{size:10},color:'#888780',callback:v=>fmtK(v*10000)},grid:{color:'rgba(0,0,0,0.05)'}}
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
       }}
   });
 
-  const pyears=INVEST.filter(r=>r.usProfit!==null).map(r=>r.year);
+  const pyears=INVEST.filter(r=>r.usProfitUSD!==null).map(r=>r.year);
+  const usProfitNTD=INVEST.filter(r=>r.usProfitUSD!==null).map(r=>(r.usProfitUSD||0)*USD2NTD);
   if(profitChart)profitChart.destroy();
   profitChart=new Chart(document.getElementById('profitChart'),{
     type:'bar',
     data:{labels:pyears,datasets:[
-      {label:'美股獲利',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.usProfit),backgroundColor:INVEST.filter(r=>r.usProfit!==null).map(r=>(r.usProfit||0)>=0?'#378ADD':'#A32D2D'),borderRadius:4,stack:'s'},
-      {label:'台股交易',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.twProfit||0),backgroundColor:INVEST.filter(r=>r.usProfit!==null).map(r=>(r.twProfit||0)>=0?'#BA7517':'#D85A30'),borderRadius:4,stack:'s'},
-      {label:'配息',data:INVEST.filter(r=>r.usProfit!==null).map(r=>r.dividend||0),backgroundColor:'#1D9E75',borderRadius:4,stack:'s'},
+      {label:'美股獲利',data:usProfitNTD,backgroundColor:usProfitNTD.map(v=>v>=0?'#378ADD':'#A32D2D'),borderRadius:4,stack:'s'},
+      {label:'台股交易',data:INVEST.filter(r=>r.usProfitUSD!==null).map(r=>r.twProfit||0),backgroundColor:INVEST.filter(r=>r.usProfitUSD!==null).map(r=>(r.twProfit||0)>=0?'#BA7517':'#D85A30'),borderRadius:4,stack:'s'},
+      {label:'配息',data:INVEST.filter(r=>r.usProfitUSD!==null).map(r=>r.dividend||0),backgroundColor:'#1D9E75',borderRadius:4,stack:'s'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
@@ -274,17 +276,20 @@ function renderInvest(){
       }}
   });
 
-  document.getElementById('invest-table').innerHTML=INVEST.map(r=>`
-    <tr>
+  document.getElementById('invest-table').innerHTML=INVEST.map(r=>{
+    const mvNTD=r.marketValUSD?r.marketValUSD*USD2NTD:null;
+    const costNTD=r.costUSD?r.costUSD*USD2NTD:null;
+    const usProfitNTD=r.usProfitUSD!==null?(r.usProfitUSD*USD2NTD):null;
+    return`<tr>
       <td><strong>${r.year}</strong></td>
-      <td>${r.marketVal?'$'+fmt(r.marketVal*10000):'—'}</td>
-      <td>${r.cost?'$'+fmt(r.cost*10000):'—'}</td>
-      <td class="${(r.usProfit||0)>=0?'pos':'neg'}">${r.usProfit!==null?(r.usProfit>=0?'+':'')+' $'+fmt(r.usProfit):'—'}</td>
+      <td>${mvNTD?'$'+fmt(mvNTD):'—'}</td>
+      <td>${costNTD?'$'+fmt(costNTD):'—'}</td>
+      <td class="${(usProfitNTD||0)>=0?'pos':'neg'}">${usProfitNTD!==null?(usProfitNTD>=0?'+':'')+' $'+fmt(usProfitNTD):'—'}</td>
       <td class="${(r.usCAGR||0)>=0?'pos':'neg'}">${r.usCAGR!==null?((r.usCAGR)*100).toFixed(1)+'%':'—'}</td>
       <td class="${(r.twProfit||0)>=0?'pos':'neg'}">${(r.twProfit>=0?'+':'')+' $'+fmt(r.twProfit)}</td>
       <td>$${fmt(r.dividend||0)}</td>
       <td class="${(r.sum||0)>=0?'pos':'neg'}"><strong>${(r.sum>=0?'+':'')+' $'+fmt(r.sum)}</strong></td>
-    </tr>`).join('');
+    </tr>`}).join('');
 }
 
 let trendChart=null,salaryChart=null,saveChart=null,cagrChart=null;
