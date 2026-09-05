@@ -73,6 +73,10 @@ tr:hover td{background:#fafaf8}
 <div id="tab-overview" class="section active">
   <div class="cards" id="sum-cards"></div>
   <div class="chart-box">
+    <h3>資產配置</h3>
+    <div class="chart-wrap h260"><canvas id="assetPieChart"></canvas></div>
+  </div>
+  <div class="chart-box">
     <h3>資產總額走勢（依真實時間間隔）</h3>
     <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>Total NTD</span></div>
     <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
@@ -131,7 +135,7 @@ tr:hover td{background:#fafaf8}
   <div class="chart-box" style="overflow-x:auto">
     <h3>投資明細表</h3>
     <table>
-      <thead><tr><th>年份</th><th>美股市值</th><th>總投入</th><th>年化報酬</th><th>台股交易獲利</th><th>配息</th><th>合計獲利</th></tr></thead>
+      <thead><tr><th>年份</th><th>美股市值</th><th>總投入</th><th>年化報酬</th><th>台股交易獲利</th><th>配息</th><th>年度獲利</th></tr></thead>
       <tbody id="invest-table"></tbody>
     </table>
   </div>
@@ -270,7 +274,7 @@ function renderInvest(){
     </tr>`}).join('');
 }
 
-let trendChart=null,salaryChart=null,saveChart=null,cagrChart=null;
+let trendChart=null,salaryChart=null,saveChart=null,cagrChart=null,assetPieChart=null;
 
 function save(){localStorage.setItem('dynamic_snapshots',JSON.stringify(snapshots));}
 function fmt(n){return Math.round(n).toLocaleString();}
@@ -318,6 +322,51 @@ function renderOverview(){
     <div class="card"><div class="card-label">負債</div><div class="card-value neg">-$${fmt(debt)}</div></div>
     <div class="card"><div class="card-label">年化成長率</div><div class="card-value pos">${cagr.toFixed(1)}%</div><div class="card-sub muted">since ${first.date}</div></div>
     <div class="card"><div class="card-label">最後更新</div><div class="card-value" style="font-size:13px">${last.date}</div></div>`;
+
+  // Asset allocation: use the last row of DYNAMIC (latest snapshot).
+  // Four major categories: 美金總額、台幣總額、車子、房子；其他資產歸入「其他」。
+  const usdKeys=['美股','RSU','美金'];
+  const twdKeys=['台股','台幣','小胖台幣 房子','小柏台幣'];
+  const majorAssets=[
+    {label:'美金總額',value:usdKeys.reduce((s,k)=>s+(last[k]||0),0)},
+    {label:'台幣總額',value:twdKeys.reduce((s,k)=>s+(last[k]||0),0)},
+    {label:'車子',value:Math.max(0,last['車🚗']||0)},
+    {label:'房子',value:Math.max(0,last['房子🏠']||0)}
+  ];
+  const classifiedTotal=majorAssets.reduce((s,a)=>s+a.value,0);
+  const dynamicTotal=Math.max(0,calcTotal(last));
+  const otherValue=Math.max(0,dynamicTotal-classifiedTotal);
+  if(otherValue>0)majorAssets.push({label:'其他',value:otherValue});
+
+  const assetLabels=majorAssets.map(a=>a.label);
+  const assetVals=majorAssets.map(a=>a.value);
+  const assetTotal=assetVals.reduce((a,v)=>a+v,0);
+
+  if(assetPieChart)assetPieChart.destroy();
+  assetPieChart=new Chart(document.getElementById('assetPieChart'),{
+    type:'doughnut',
+    data:{
+      labels:assetLabels,
+      datasets:[{
+        data:assetVals,
+        borderWidth:1
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10}}},
+        tooltip:{callbacks:{
+          label:c=>{
+            const v=c.parsed||0;
+            const pct=assetTotal>0?(v/assetTotal*100).toFixed(1):'0.0';
+            return` ${c.label}: $${fmt(v)} NTD (${pct}%)`;
+          }
+        }}
+      }
+    }
+  });
 
   if(trendChart)trendChart.destroy();
   const tdata=snapshots.map(s=>({x:s.date,y:calcTotal(s)}));
