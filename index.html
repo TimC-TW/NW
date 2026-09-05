@@ -73,13 +73,12 @@ tr:hover td{background:#fafaf8}
 <div id="tab-overview" class="section active">
   <div class="cards" id="sum-cards"></div>
   <div class="chart-box">
-    <h3>資產配置</h3>
-    <div class="chart-wrap h260"><canvas id="assetPieChart"></canvas></div>
-  </div>
-  <div class="chart-box">
     <h3>資產總額走勢（依真實時間間隔）</h3>
     <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>Total NTD</span></div>
-    <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
+      <div class="chart-box">
+    <h3>資產配置</h3>
+    <div class="chart-wrap h260"><canvas id="assetPieChart"></canvas></div>
+  <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
   </div>
 </div>
 
@@ -349,14 +348,23 @@ function renderOverview(){
       labels:assetLabels,
       datasets:[{
         data:assetVals,
-        borderWidth:1
+        backgroundColor:assetVals.map((_,i)=>{
+          const n=assetVals.length;
+          const t=n<=1?1:i/(n-1);
+          const r=Math.round(29+(55-29)*t);
+          const g=Math.round(158+(138-158)*t);
+          const b=Math.round(117+(221-117)*t);
+          return`rgb(${r},${g},${b})`;
+        }),
+        borderWidth:1,
+        borderColor:'#fff'
       }]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
       plugins:{
-        legend:{position:'right',labels:{font:{size:10}}},
+        legend:{position:'right',labels:{font:{size:10},generateLabels:chart=>chart.data.labels.map((label,i)=>{const v=chart.data.datasets[0].data[i]||0;const pct=assetTotal>0?(v/assetTotal*100).toFixed(1):'0.0';return{ text:`${label} ${pct}%`,fillStyle:chart.data.datasets[0].backgroundColor[i],strokeStyle:chart.data.datasets[0].borderColor?.[i],lineWidth:1,hidden:false,index:i};})}},
         tooltip:{callbacks:{
           label:c=>{
             const v=c.parsed||0;
