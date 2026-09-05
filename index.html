@@ -553,46 +553,50 @@ function exportJSON(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='dynamic_assets_'+new Date().toISOString().slice(0,10)+'.json';a.click();
 }
-function xlsxSerialToDate(serial){
-  // Excel serial date to yyyy-mm-dd
-  const d=new Date(Math.round((serial-25569)*86400*1000));
-  return d.toISOString().slice(0,10);
-}
 function parseXLSXBuffer(arrayBuf){
-  const wb=XLSX.read(arrayBuf,{type:'array',cellDates:false}); // raw:false so dates stay as serials
+  const wb=XLSX.read(arrayBuf,{type:'array',cellDates:true});
   const ws=wb.Sheets['Dynamic ']||wb.Sheets['Dynamic'];
   if(!ws)throw new Error('找不到 Dynamic 工作表');
-  const raw=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,cellDates:true});
 
   const FLDS=['美股','RSU','美金','台股','台幣','小胖台幣 房子','小柏台幣','台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣','房子🏠','車🚗','ESPP 3538/3722','TEP 6000','Insurance 2923','Medical + Pension 2123/2233 + 683','朱爸朱媽','信貸','信用卡'];
+
+  // Build label->rowIndex map, also find Total row
   const labelToRow={};
-  for(let i=2;i<raw.length;i++){
+  let totalRow=-1;
+  for(let i=0;i<raw.length;i++){
     const label=raw[i]&&raw[i][0]!=null?String(raw[i][0]).trim():'';
-    if(label)labelToRow[label]=i;
+    if(label==='Total')totalRow=i;
+    else if(label)labelToRow[label]=i;
   }
-  const totalRow=raw.length-1;
+  if(totalRow===-1)throw new Error('找不到 Total 行');
+
+  // Row 1 = dates
   const dateRow=raw[1]||[];
   const result=[];
   for(let col=1;col<dateRow.length;col++){
     const dateVal=dateRow[col];
-    if(dateVal==null||dateVal==='')continue;
+    if(dateVal==null)continue;
     let dateStr='';
-    if(typeof dateVal==='number'){
-      dateStr=xlsxSerialToDate(dateVal);
+    if(dateVal instanceof Date){
+      // shift local timezone offset to get correct date
+      const d=new Date(dateVal.getTime()-dateVal.getTimezoneOffset()*60000);
+      dateStr=d.toISOString().slice(0,10);
+    } else if(typeof dateVal==='number'){
+      // Excel serial
+      const d=new Date(Math.round((dateVal-25569)*86400*1000));
+      dateStr=d.toISOString().slice(0,10);
     } else {
-      // might be a string like "2023-03-30" or Date object
-      const s=String(dateVal);
-      const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+      const m=String(dateVal).match(/(\d{4})-(\d{2})-(\d{2})/);
       if(m)dateStr=`${m[1]}-${m[2]}-${m[3]}`;
     }
     if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr))continue;
     const snap={date:dateStr};
     FLDS.forEach(f=>{
       const ri=labelToRow[f];
-      const v=ri!==undefined&&raw[ri]!=null?parseFloat(raw[ri][col])||0:0;
-      snap[f]=v;
+      snap[f]=ri!=null&&raw[ri]!=null?parseFloat(raw[ri][col])||0:0;
     });
-    snap['_total']=raw[totalRow]!=null?parseFloat(raw[totalRow][col])||0:0;
+    snap['_total']=parseFloat(raw[totalRow][col])||0;
     result.push(snap);
   }
   if(!result.length)throw new Error('解析不到資料，請確認 Dynamic 工作表格式');
