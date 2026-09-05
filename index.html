@@ -86,7 +86,7 @@ tr:hover td{background:#fafaf8}
     <h3>年度薪資（現金 + 總包含RSU）</h3>
     <div class="legend">
       <span><span class="ld" style="background:#1D9E75"></span>現金薪資 NTD</span>
-      <span><span class="ld" style="background:#378ADD"></span>年度總薪酬 NTD</span>
+      <span><span class="ld" style="background:#378ADD"></span>RSU 薪資 NTD</span>
     </div>
     <div class="chart-wrap h260"><canvas id="salaryChart"></canvas></div>
   </div>
@@ -366,19 +366,19 @@ function renderSalary(){
 
   // Summary cards
   const lastActual=actual[actual.length-1];
-  const firstActual=actual[0];
-  const salYears=actual.length-1;
+  const firstActual=YEARLY.find(y=>y.year==='2020');
+  const salYears=lastActual&&firstActual?(parseInt(lastActual.year)-parseInt(firstActual.year)):0;
   const salCAGR=salYears>0?((Math.pow(lastActual.annualSalaryNTD/firstActual.annualSalaryNTD,1/salYears)-1)*100):0;
 
   document.getElementById('salary-cards').innerHTML=`
-    <div class="card"><div class="card-label">2026 現金薪資</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2026').cashSalary)}</div></div>
-    <div class="card"><div class="card-label">薪資年化成長</div><div class="card-value pos">${salCAGR.toFixed(1)}%</div><div class="card-sub muted">2019→2025</div></div>
+    <div class="card"><div class="card-label">2026 總薪資</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2026').annualSalaryNTD)}</div></div>
+    <div class="card"><div class="card-label">薪資年化成長</div><div class="card-value pos">${salCAGR.toFixed(1)}%</div><div class="card-sub muted">2020→2025</div></div>
     <div class="card"><div class="card-label">2026 年度儲蓄</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2026').saveNTD)}</div></div>
     <div class="card"><div class="card-label">2030 預測總薪酬</div><div class="card-value">$${fmtK(YEARLY.find(y=>y.year==='2030').annualSalaryNTD)}</div></div>`;
 
-  // Salary bar chart — all solid, forecast bars lighter
-  const cashData=YEARLY.map(y=>y.cashSalary||y.annualSalaryNTD);
-  const annualData=YEARLY.map(y=>y.annualSalaryNTD);
+  // Salary bar chart — cash salary + RSU salary stacked; forecast bars lighter
+  const cashData=YEARLY.map(y=>y.cashSalary||0);
+  const rsuData=YEARLY.map(y=>Math.max(0,(y.annualSalaryNTD||0)-(y.cashSalary||0)));
   const cutIdx=YEARLY.findIndex(y=>y.forecast);
 
   if(salaryChart)salaryChart.destroy();
@@ -387,15 +387,15 @@ function renderSalary(){
     data:{
       labels:allYears,
       datasets:[
-        {label:'現金薪資',data:cashData,backgroundColor:allYears.map((_,i)=>i<cutIdx?'#1D9E75':'rgba(29,158,117,0.35)'),borderRadius:4,order:2},
-        {label:'年度總薪酬',data:annualData,type:'line',borderColor:'#378ADD',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:0.3,order:1},
+        {label:'現金薪資',data:cashData,backgroundColor:allYears.map((_,i)=>i<cutIdx?'#1D9E75':'rgba(29,158,117,0.35)'),borderRadius:4,stack:'salary'},
+        {label:'RSU薪資',data:rsuData,backgroundColor:allYears.map((_,i)=>i<cutIdx?'#378ADD':'rgba(55,138,221,0.35)'),borderRadius:4,stack:'salary'},
       ]
     },
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': $'+fmt(c.parsed.y)+' NTD'}}},
       scales:{
-        x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
-        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+        x:{stacked:true,ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
+        y:{stacked:true,ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
       }}
   });
 
