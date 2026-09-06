@@ -73,7 +73,8 @@ tr:hover td{background:#fafaf8}
 <div id="tab-overview" class="section active">
   <div class="cards" id="sum-cards"></div>
   <div class="chart-box">
-    <h3>資產總額走勢（依真實時間間隔）</h3>
+    <h3>資產總額走勢（依真實時間間隔）<button onclick="if(trendChart)trendChart.resetZoom()" style="float:right;font-size:11px;padding:2px 8px;border:0.5px solid #D3D1C7;border-radius:4px;background:#fff;cursor:pointer;color:#888780">重置</button></h3>
+    <div style="font-size:11px;color:#888780;margin-bottom:6px">滾輪縮放・拖曳平移</div>
     <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>Total NTD</span></div>
     <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
   </div>
@@ -171,6 +172,8 @@ tr:hover td{background:#fafaf8}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
 const FIELDS=[
   {key:'美股',group:'流動資產'},{key:'RSU',group:'流動資產'},{key:'美金',group:'流動資產'},
@@ -344,7 +347,43 @@ function renderOverview(){
     type:'line',
     data:{datasets:[{label:'Total',data:tdata,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.07)',borderWidth:2,fill:true,tension:0.3,pointRadius:tdata.length>30?0:3,pointHoverRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:items=>{
+              // Find nearest actual data point to hovered x
+              const hx=items[0].parsed.x;
+              let nearest=tdata[0];
+              let minDiff=Infinity;
+              tdata.forEach(p=>{
+                const d=Math.abs(new Date(p.x).getTime()-hx);
+                if(d<minDiff){minDiff=d;nearest=p;}
+              });
+              return nearest.x;
+            },
+            label:items=>{
+              const hx=items.parsed.x;
+              let nearest=tdata[0];
+              let minDiff=Infinity;
+              tdata.forEach(p=>{
+                const d=Math.abs(new Date(p.x).getTime()-hx);
+                if(d<minDiff){minDiff=d;nearest=p;}
+              });
+              const prev=tdata[tdata.indexOf(nearest)-1];
+              const diff=prev?nearest.y-prev.y:null;
+              const diffStr=diff!=null?(diff>=0?' ▲ +$':' ▼ -$')+fmt(Math.abs(diff)):'';
+              return` $${fmt(nearest.y)} NTD${diffStr}`;
+            }
+          }
+        },
+        zoom:{
+          zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},
+          pan:{enabled:true,mode:'x'},
+          limits:{x:{minRange:1000*60*60*24*30}}
+        }
+      },
       scales:{
         x:{type:tdata.length>1?'time':'category',time:{unit:'month',displayFormats:{month:'yy/MM'}},ticks:{font:{size:10},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
         y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
