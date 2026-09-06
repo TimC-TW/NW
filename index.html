@@ -121,9 +121,6 @@ tr:hover td{background:#fafaf8}
     </div>
     <div class="chart-wrap h220"><canvas id="usStockChart"></canvas></div>
   </div>
-
-    <div class="chart-wrap h220"><canvas id="profitChart"></canvas></div>
-  </div>
   <div class="chart-box" style="overflow-x:auto">
     <h3>投資明細表</h3>
     <table>
@@ -204,27 +201,26 @@ const YEARLY=[
 ];
 
 const INVEST=[
-  {year:'2020',marketValUSD:null,costUSD:null,usProfitUSD:null,usCAGR:null,twProfit:61616,dividend:0,sum:61616},
-  {year:'2021',marketValUSD:7200,costUSD:7200,usProfitUSD:-18,usCAGR:-0.0025,twProfit:-132472,dividend:0,sum:-133039},
-  {year:'2022',marketValUSD:7182,costUSD:24900,usProfitUSD:-9098,usCAGR:-0.365,twProfit:-63600,dividend:0,sum:-350187},
-  {year:'2023',marketValUSD:15784,costUSD:47819,usProfitUSD:33046,usCAGR:1.854,twProfit:2782,dividend:6640,sum:1050371},
-  {year:'2024',marketValUSD:71749,costUSD:47819,usProfitUSD:48486,usCAGR:1.676,twProfit:72216,dividend:79640,sum:1679165},
-  {year:'2025',marketValUSD:120235,costUSD:97232,usProfitUSD:66133,usCAGR:1.421,twProfit:3739,dividend:17790,sum:2104718},
-  {year:'2026',marketValUSD:241018,costUSD:110232,usProfitUSD:139893,usCAGR:1.580,twProfit:216690,dividend:0,sum:4623319},
+  {year:'2020',nextYearMarketValUSD:7200, costUSD:null, usProfitUSD:null, usCAGR:null, twProfit:61616, dividend:0, sum:61616},
+  {year:'2021',nextYearMarketValUSD:7182, costUSD:7200, usProfitUSD:-18, usCAGR:-0.0025, twProfit:-132472, dividend:0, sum:-133039},
+  {year:'2022',nextYearMarketValUSD:15784, costUSD:24900, usProfitUSD:-9098, usCAGR:-0.365, twProfit:-63600, dividend:0, sum:-350187},
+  {year:'2023',nextYearMarketValUSD:71749, costUSD:47819, usProfitUSD:33046, usCAGR:1.854, twProfit:2782, dividend:6640, sum:1050371},
+  {year:'2024',nextYearMarketValUSD:120235, costUSD:47819, usProfitUSD:48486, usCAGR:1.676, twProfit:72216, dividend:79640, sum:1679165},
+  {year:'2025',nextYearMarketValUSD:241018, costUSD:97232, usProfitUSD:66133, usCAGR:1.421, twProfit:3739, dividend:17790, sum:2104718},
+  {year:'2026',nextYearMarketValUSD:275303, costUSD:110618, usProfitUSD:20899, usCAGR:1.087, twProfit:-80000, dividend:0, sum:578318},
 ];
 const USD2NTD=32.5;
-
 
 let usStockChart=null;
 
 function renderInvest(){
-  const last=INVEST[INVEST.length-2];
+  const last=INVEST[INVEST.length-1];
   const totalUsProfitNTD=INVEST.reduce((s,r)=>s+(r.usProfitUSD||0)*USD2NTD,0);
   const totalTW=INVEST.reduce((s,r)=>s+(r.twProfit||0),0);
   const totalDiv=INVEST.reduce((s,r)=>s+(r.dividend||0),0);
 
   document.getElementById('invest-cards').innerHTML=`
-    <div class="card"><div class="card-label">美股市值 (2025)</div><div class="card-value">$${fmt((last.marketValUSD||0)*USD2NTD)}</div></div>
+    <div class="card"><div class="card-label">美股市值 (2027/1/1)</div><div class="card-value">$${fmt((last.nextYearMarketValUSD||0)*USD2NTD)}</div></div>
     <div class="card"><div class="card-label">美股累計獲利</div><div class="card-value pos">$${fmt(totalUsProfitNTD)}</div></div>
     <div class="card"><div class="card-label">台股累計獲利</div><div class="card-value ${totalTW>=0?'pos':'neg'}">${totalTW>=0?'+':''} $${fmt(totalTW)}</div></div>
     <div class="card"><div class="card-label">累計配息</div><div class="card-value pos">$${fmt(totalDiv)}</div></div>`;
@@ -249,22 +245,23 @@ function renderInvest(){
       }}
   });
 
-  document.getElementById('invest-table').innerHTML=INVEST.map((r,i)=>{
-    const next=INVEST[i+1];
-    const mvNTD=next?.marketValUSD!=null?next.marketValUSD*USD2NTD:null;
+  document.getElementById('invest-table').innerHTML=INVEST.map(r=>{
+    const mvNTD=r.nextYearMarketValUSD!=null?r.nextYearMarketValUSD*USD2NTD:null;
     const costNTD=r.costUSD!=null?r.costUSD*USD2NTD:null;
+    const usProfitNTD=r.usProfitUSD!=null?r.usProfitUSD*USD2NTD:null;
     return`<tr>
       <td><strong>${r.year}</strong></td>
       <td>${mvNTD!=null?'$'+fmt(mvNTD):'—'}</td>
       <td>${costNTD!=null?'$'+fmt(costNTD):'—'}</td>
       <td class="${(r.usCAGR||0)>=0?'pos':'neg'}">${r.usCAGR!=null?(r.usCAGR*100).toFixed(1)+'%':'—'}</td>
-      <td class="${(r.twProfit||0)>=0?'pos':'neg'}">${(r.twProfit>=0?'+':'')+' $'+fmt(r.twProfit||0)}</td>
+      <td class="${(r.twProfit||0)>=0?'pos':'neg'}">${r.twProfit!=null?(r.twProfit>=0?'+':'')+' $'+fmt(r.twProfit):'—'}</td>
       <td>$${fmt(r.dividend||0)}</td>
       <td class="${(r.sum||0)>=0?'pos':'neg'}"><strong>${(r.sum>=0?'+':'')+' $'+fmt(r.sum||0)}</strong></td>
     </tr>`}).join('');
 }
 
 let trendChart=null,salaryChart=null,saveChart=null,cagrChart=null,assetPieChart=null;
+let snapshots=JSON.parse(localStorage.getItem('dynamic_snapshots')||'[]');
 
 function save(){localStorage.setItem('dynamic_snapshots',JSON.stringify(snapshots));}
 function fmt(n){return Math.round(n).toLocaleString();}
@@ -294,8 +291,16 @@ function renderOverview(){
   const last=snapshots[snapshots.length-1];
   const prev=snapshots.length>1?snapshots[snapshots.length-2]:null;
   const total=calcTotal(last),prevT=prev?calcTotal(prev):0,diff=total-prevT;
-  const liquid=ALLOC_KEYS.slice(0,10).reduce((s,k)=>s+(last[k]||0),0);
-  const fixed=(last['房子🏠']||0)+(last['車🚗']||0);
+  const USD_KEYS=['美股','RSU','美金'];
+  const TWD_KEYS=['台股','台幣','小胖台幣 房子','小柏台幣'];
+  const RMB_KEYS=['台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣'];
+  const RMB2NTD=4.43;
+  const usdToNTD=v=>v*32.5;
+  const liquidUSD=USD_KEYS.reduce((s,k)=>s+Math.max(0,last[k]||0),0);
+  const liquidTWD=TWD_KEYS.reduce((s,k)=>s+(last[k]||0),0);
+  const liquidRMB=RMB_KEYS.reduce((s,k)=>s+Math.max(0,last[k]||0),0);
+  const liquid=usdToNTD(liquidUSD)+liquidTWD+liquidRMB*RMB2NTD;
+  const fixed=Math.max(0,last['房子🏠']||0)+Math.max(0,last['車🚗']||0);
   const debt=DEBT_KEYS.reduce((s,k)=>s+Math.abs(last[k]||0),0);
 
   // CAGR from first snapshot
@@ -314,11 +319,9 @@ function renderOverview(){
     <div class="card"><div class="card-label">最後更新</div><div class="card-value" style="font-size:13px">${last.date}</div></div>`;
 
   // Asset allocation - USD keys converted to NTD
-  const usdKeys=['美股','RSU','美金'];
-  const twdKeys=['台股','台幣','小胖台幣 房子','小柏台幣'];
   const majorAssets=[
-    {label:'美金總額',value:usdKeys.reduce((s,k)=>s+(last[k]||0),0)*32.5},
-    {label:'台幣總額',value:twdKeys.reduce((s,k)=>s+(last[k]||0),0)},
+    {label:'美金總額',value:Math.max(0,['美股','RSU','美金'].reduce((s,k)=>s+(last[k]||0),0)*32.5)},
+    {label:'台幣總額',value:Math.max(0,['台股','台幣','小胖台幣 房子','小柏台幣'].reduce((s,k)=>s+(last[k]||0),0))},
     {label:'車子',value:Math.max(0,last['車🚗']||0)},
     {label:'房子',value:Math.max(0,last['房子🏠']||0)}
   ];
@@ -524,8 +527,11 @@ function renderHistory(){
   document.getElementById('hist-body').innerHTML=snapshots.slice().reverse().map((s,i)=>{
     const idx=snapshots.length-1-i;
     const total=calcTotal(s),prev=idx>0?calcTotal(snapshots[idx-1]):null,diff=prev!==null?total-prev:null;
-    const liquid=ALLOC_KEYS.slice(0,10).reduce((a,k)=>a+(s[k]||0),0);
-    const fixed=(s['房子🏠']||0)+(s['車🚗']||0);
+    const liquidUSD2=['美股','RSU','美金'].reduce((a,k)=>a+Math.max(0,s[k]||0),0);
+    const liquidTWD2=['台股','台幣','小胖台幣 房子','小柏台幣'].reduce((a,k)=>a+(s[k]||0),0);
+    const liquidRMB2=['台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣'].reduce((a,k)=>a+Math.max(0,s[k]||0),0);
+    const liquid=liquidUSD2*32.5+liquidTWD2+liquidRMB2*4.43;
+    const fixed=Math.max(0,s['房子🏠']||0)+Math.max(0,s['車🚗']||0);
     const debt=DEBT_KEYS.reduce((a,k)=>a+Math.abs(s[k]||0),0);
     return`<tr>
       <td><strong>${s.date}</strong></td>
