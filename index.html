@@ -73,13 +73,13 @@ tr:hover td{background:#fafaf8}
 <div id="tab-overview" class="section active">
   <div class="cards" id="sum-cards"></div>
   <div class="chart-box">
-    <h3>資產配置</h3>
-    <div class="chart-wrap h260"><canvas id="assetPieChart"></canvas></div>
-  </div>
-  <div class="chart-box">
     <h3>資產總額走勢（依真實時間間隔）</h3>
     <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>Total NTD</span></div>
     <div class="chart-wrap h260"><canvas id="trendChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>資產配置</h3>
+    <div class="chart-wrap h260"><canvas id="assetPieChart"></canvas></div>
   </div>
 </div>
 
@@ -104,16 +104,9 @@ tr:hover td{background:#fafaf8}
     <div class="chart-wrap h260"><canvas id="saveChart"></canvas></div>
   </div>
   <div class="chart-box">
-    <h3>年化資產成長率（基於 Dynamic Total，實線=實際，虛線=預測）</h3>
+    <h3>年化資產成長率（基於 Dynamic Total）</h3>
     <div class="legend"><span><span class="ld" style="background:#D85A30"></span>YoY 成長率 %</span></div>
     <div class="chart-wrap h200"><canvas id="cagrChart"></canvas></div>
-  </div>
-  <div class="chart-box" style="overflow-x:auto">
-    <h3>薪資明細表</h3>
-    <table>
-      <thead><tr><th>年份</th><th>公司</th><th>職級</th><th>現金薪資</th><th>年度總薪酬</th><th>稅</th><th>年度儲蓄</th></tr></thead>
-      <tbody id="salary-table"></tbody>
-    </table>
   </div>
 </div>
 
@@ -131,7 +124,6 @@ tr:hover td{background:#fafaf8}
 
     <div class="chart-wrap h220"><canvas id="profitChart"></canvas></div>
   </div>
-
   <div class="chart-box" style="overflow-x:auto">
     <h3>投資明細表</h3>
     <table>
@@ -257,8 +249,6 @@ function renderInvest(){
       }}
   });
 
-
-
   document.getElementById('invest-table').innerHTML=INVEST.map((r,i)=>{
     const next=INVEST[i+1];
     const mvNTD=next?.marketValUSD!=null?next.marketValUSD*USD2NTD:null;
@@ -323,12 +313,11 @@ function renderOverview(){
     <div class="card"><div class="card-label">年化成長率</div><div class="card-value pos">${cagr.toFixed(1)}%</div><div class="card-sub muted">since ${first.date}</div></div>
     <div class="card"><div class="card-label">最後更新</div><div class="card-value" style="font-size:13px">${last.date}</div></div>`;
 
-  // Asset allocation: use the last row of DYNAMIC (latest snapshot).
-  // Four major categories: 美金總額、台幣總額、車子、房子；其他資產歸入「其他」。
+  // Asset allocation - USD keys converted to NTD
   const usdKeys=['美股','RSU','美金'];
   const twdKeys=['台股','台幣','小胖台幣 房子','小柏台幣'];
   const majorAssets=[
-    {label:'美金總額',value:usdKeys.reduce((s,k)=>s+(last[k]||0),0)},
+    {label:'美金總額',value:usdKeys.reduce((s,k)=>s+(last[k]||0),0)*32.5},
     {label:'台幣總額',value:twdKeys.reduce((s,k)=>s+(last[k]||0),0)},
     {label:'車子',value:Math.max(0,last['車🚗']||0)},
     {label:'房子',value:Math.max(0,last['房子🏠']||0)}
@@ -342,31 +331,9 @@ function renderOverview(){
   const assetVals=majorAssets.map(a=>a.value);
   const assetTotal=assetVals.reduce((a,v)=>a+v,0);
 
-  if(assetPieChart)assetPieChart.destroy();
-  assetPieChart=new Chart(document.getElementById('assetPieChart'),{
-    type:'doughnut',
-    data:{
-      labels:assetLabels,
-      datasets:[{
-        data:assetVals,
-        borderWidth:1
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{
-        legend:{position:'right',labels:{font:{size:10}}},
-        tooltip:{callbacks:{
-          label:c=>{
-            const v=c.parsed||0;
-            const pct=assetTotal>0?(v/assetTotal*100).toFixed(1):'0.0';
-            return` ${c.label}: $${fmt(v)} NTD (${pct}%)`;
-          }
-        }}
-      }
-    }
-  });
+  // Gradient colors from green to blue
+  const gradColors=['#1D9E75','#2E8B6E','#3A7A9C','#378ADD','#6AAEE8','#9FC8F0','#B5D4F4'];
+  const pieColors=assetLabels.map((_,i)=>gradColors[i]||gradColors[gradColors.length-1]);
 
   if(trendChart)trendChart.destroy();
   const tdata=snapshots.map(s=>({x:s.date,y:calcTotal(s)}));
@@ -379,6 +346,43 @@ function renderOverview(){
         x:{type:tdata.length>1?'time':'category',time:{unit:'month',displayFormats:{month:'yy/MM'}},ticks:{font:{size:10},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
         y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
       }}
+  });
+
+  if(assetPieChart)assetPieChart.destroy();
+  assetPieChart=new Chart(document.getElementById('assetPieChart'),{
+    type:'doughnut',
+    data:{
+      labels:assetLabels,
+      datasets:[{data:assetVals,backgroundColor:pieColors,borderWidth:0}]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{
+          position:'right',
+          labels:{
+            font:{size:11},
+            generateLabels:chart=>{
+              const ds=chart.data.datasets[0];
+              return chart.data.labels.map((label,i)=>{
+                const v=ds.data[i]||0;
+                const pct=assetTotal>0?(v/assetTotal*100).toFixed(1):'0.0';
+                return{text:`${label}  ${pct}%`,fillStyle:ds.backgroundColor[i],strokeStyle:'transparent',index:i};
+              });
+            }
+          }
+        },
+        tooltip:{callbacks:{
+          label:c=>{
+            const v=c.parsed||0;
+            const pct=assetTotal>0?(v/assetTotal*100).toFixed(1):'0.0';
+            return` $${fmt(v)} NTD (${pct}%)`;
+          }
+        }}
+      },
+      cutout:'60%'
+    }
   });
 }
 
@@ -479,17 +483,6 @@ function renderSalary(){
       }}
   });
 
-  // Table
-  document.getElementById('salary-table').innerHTML=YEARLY.map(y=>`
-    <tr>
-      <td><strong>${y.year}</strong>${y.forecast?'<span class="forecast-note">預測</span>':''}</td>
-      <td style="color:#888780;font-size:12px">${y.workplace}</td>
-      <td style="color:#888780;font-size:12px">${y.title.split('\n')[0]}</td>
-      <td>$${fmt(y.cashSalary||0)}</td>
-      <td>$${fmt(y.annualSalaryNTD)}</td>
-      <td style="color:#888780">$${fmt(y.tax||0)}</td>
-      <td class="${(y.saveNTD||0)>=0?'pos':'neg'}">$${fmt(y.saveNTD||0)}</td>
-    </tr>`).join('');
 }
 
 /* ── 快照表單 ── */
