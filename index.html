@@ -65,6 +65,7 @@ tr:hover td{background:#fafaf8}
   <button class="tab active" onclick="switchTab('overview')">總覽</button>
   <button class="tab" onclick="switchTab('salary')">薪資分析</button>
   <button class="tab" onclick="switchTab('invest')">投資分析</button>
+  <button class="tab" onclick="switchTab('expense')">支出分析</button>
   <button class="tab" onclick="switchTab('snapshot')">記錄快照</button>
   <button class="tab" onclick="switchTab('history')">歷史</button>
 </div>
@@ -128,6 +129,24 @@ tr:hover td{background:#fafaf8}
       <thead><tr><th>年份</th><th>美股市值</th><th>總投入</th><th>年化報酬</th><th>台股交易獲利</th><th>配息</th><th>年度獲利</th></tr></thead>
       <tbody id="invest-table"></tbody>
     </table>
+  </div>
+</div>
+
+<!-- 支出分析 -->
+<div id="tab-expense" class="section">
+  <div class="cards" id="expense-cards"></div>
+  <div style="display:flex;gap:8px;margin-bottom:1rem">
+    <button class="btn btn-sm" id="exp-btn-2024" onclick="setExpYear(2024)" style="background:#2C2C2A;color:#fff;border-color:transparent">2024</button>
+    <button class="btn btn-sm" id="exp-btn-2025" onclick="setExpYear(2025)">2025</button>
+    <button class="btn btn-sm" id="exp-btn-both" onclick="setExpYear('both')">對比</button>
+  </div>
+  <div class="chart-box">
+    <h3 id="exp-bar-title">支出類別分佈</h3>
+    <div class="chart-wrap" style="height:320px"><canvas id="expBarChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>年度支出總額對比</h3>
+    <div class="chart-wrap h220"><canvas id="expTotalChart"></canvas></div>
   </div>
 </div>
 
@@ -210,7 +229,7 @@ const INVEST=[
   {year:'2023',nextYearMarketValUSD:71749, costUSD:47819, usProfitUSD:33046, usCAGR:1.854, twProfit:2782, dividend:6640, sum:1050371},
   {year:'2024',nextYearMarketValUSD:120235, costUSD:47819, usProfitUSD:48486, usCAGR:1.676, twProfit:72216, dividend:79640, sum:1679165},
   {year:'2025',nextYearMarketValUSD:241018, costUSD:97232, usProfitUSD:66133, usCAGR:1.421, twProfit:3739, dividend:17790, sum:2104718},
-  {year:'2026',nextYearMarketValUSD:275303, costUSD:110618, usProfitUSD:20899, usCAGR:1.087, twProfit:-80000, dividend:0, sum:578318},
+  {year:'2026',nextYearMarketValUSD:314000, costUSD:110618, usProfitUSD:59596, usCAGR:1.247, twProfit:-80000, dividend:0, sum:1797274},
 ];
 const USD2NTD=32.5;
 
@@ -278,12 +297,13 @@ function calcTotal(s){
 }
 
 function switchTab(t){
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['overview','salary','invest','snapshot','history'][i]===t));
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['overview','salary','invest','expense','snapshot','history'][i]===t));
   document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='overview')renderOverview();
   if(t==='salary')renderSalary();
   if(t==='invest')renderInvest();
+  if(t==='expense')renderExpense();
   if(t==='snapshot')renderSnapForm();
   if(t==='history')renderHistory();
 }
@@ -626,6 +646,114 @@ function importJSON(e){
     }catch(err){alert('JSON 格式錯誤：'+err.message);}
   };
   r.readAsText(file);
+}
+
+/* ── 支出分析 ── */
+const EXPENSE_2024={
+  '車子':311203,'稅金':198585,'房租':161475,'飲食':118453,'貸款':116208,
+  '購物':62560,'家庭':44447,'旅遊':44305,'其他':43287,'社交':31990,
+  '醫療':29771,'數位':25162,'交通':21073,'日用品':15899,'娛樂':11346,
+  '生活':8204,'禮物':7186,'訂閱':2080
+};
+const EXPENSE_2025={
+  '旅遊':343873,'稅金':328016,'車子':321356,'房租':251820,'貸款':232416,
+  '飲食':221318,'醫療':150117,'家庭':117172,'購物':69127,'交通':33927,
+  '禮物':32706,'社交':28730,'訂閱':27008,'日用品':19255,'其他':17453,
+  '生活':15964,'數位':8667,'娛樂':5011
+};
+let expYear=2024;
+let expBarChart=null,expTotalChart=null;
+
+function setExpYear(y){
+  expYear=y;
+  ['2024','2025','both'].forEach(k=>{
+    const btn=document.getElementById('exp-btn-'+k);
+    if(!btn)return;
+    const active=String(k)===String(y);
+    btn.style.background=active?'#2C2C2A':'#fff';
+    btn.style.color=active?'#fff':'#2C2C2A';
+    btn.style.borderColor=active?'transparent':'#D3D1C7';
+  });
+  renderExpBar();
+}
+
+function renderExpense(){
+  const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
+  const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
+  const diff=t25-t24;
+  document.getElementById('expense-cards').innerHTML=`
+    <div class="card"><div class="card-label">2024 總支出</div><div class="card-value">$${fmt(t24)}</div></div>
+    <div class="card"><div class="card-label">2025 總支出</div><div class="card-value">$${fmt(t25)}</div></div>
+    <div class="card"><div class="card-label">YoY 增減</div><div class="card-value ${diff>=0?'neg':'pos'}">${diff>=0?'▲':'▼'} $${fmt(Math.abs(diff))}</div></div>
+    <div class="card"><div class="card-label">2025 最大支出</div><div class="card-value" style="font-size:14px">旅遊 $${fmt(EXPENSE_2025['旅遊'])}</div></div>`;
+  setExpYear(expYear);
+  renderExpTotal();
+}
+
+function renderExpBar(){
+  document.getElementById('exp-bar-title').textContent=
+    expYear==='both'?'支出類別對比（2024 vs 2025）':expYear+'年 支出類別分佈';
+  if(expBarChart)expBarChart.destroy();
+  const gradient=['#1D9E75','#2A9278','#38867C','#45797F','#536D83','#606186','#6E558A','#7B488D','#893C91','#963094','#A3279A','#B01BA0','#BE0EA5'];
+
+  if(expYear==='both'){
+    const allCats=[...new Set([...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025)])];
+    allCats.sort((a,b)=>(EXPENSE_2025[b]||0)-(EXPENSE_2025[a]||0));
+    expBarChart=new Chart(document.getElementById('expBarChart'),{
+      type:'bar',
+      data:{labels:allCats,datasets:[
+        {label:'2024',data:allCats.map(c=>EXPENSE_2024[c]||0),backgroundColor:'rgba(55,138,221,0.75)',borderRadius:3},
+        {label:'2025',data:allCats.map(c=>EXPENSE_2025[c]||0),backgroundColor:'rgba(29,158,117,0.85)',borderRadius:3},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)}}},
+        scales:{
+          x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+          y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+        }}
+    });
+  } else {
+    const data=expYear===2024?EXPENSE_2024:EXPENSE_2025;
+    const cats=Object.entries(data).sort((a,b)=>b[1]-a[1]);
+    const total=cats.reduce((s,[,v])=>s+v,0);
+    expBarChart=new Chart(document.getElementById('expBarChart'),{
+      type:'bar',
+      data:{labels:cats.map(([k])=>k),datasets:[{
+        label:'支出',data:cats.map(([,v])=>v),
+        backgroundColor:cats.map((_,i)=>gradient[Math.min(i,gradient.length-1)]),
+        borderRadius:4
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+          const pct=(c.parsed.y/total*100).toFixed(1);
+          return` $${fmt(c.parsed.y)} (${pct}%)`;
+        }}}},
+        scales:{
+          x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+          y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+        }}
+    });
+  }
+}
+
+function renderExpTotal(){
+  if(expTotalChart)expTotalChart.destroy();
+  const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
+  const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
+  expTotalChart=new Chart(document.getElementById('expTotalChart'),{
+    type:'bar',
+    data:{labels:['2024','2025'],datasets:[{
+      data:[t24,t25],
+      backgroundColor:['rgba(55,138,221,0.75)','rgba(29,158,117,0.85)'],
+      borderRadius:6
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)+' NTD'}}},
+      scales:{
+        x:{ticks:{font:{size:12},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
 }
 
 renderOverview();
