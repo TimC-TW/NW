@@ -138,6 +138,7 @@ tr:hover td{background:#fafaf8}
   <div style="display:flex;gap:8px;margin-bottom:1rem">
     <button class="btn btn-sm" id="exp-btn-2024" onclick="setExpYear(2024)" style="background:#2C2C2A;color:#fff;border-color:transparent">2024</button>
     <button class="btn btn-sm" id="exp-btn-2025" onclick="setExpYear(2025)">2025</button>
+    <button class="btn btn-sm" id="exp-btn-2026" onclick="setExpYear(2026)">2026</button>
     <button class="btn btn-sm" id="exp-btn-both" onclick="setExpYear('both')">對比</button>
   </div>
   <div class="chart-box">
@@ -661,12 +662,20 @@ const EXPENSE_2025={
   '禮物':32706,'社交':28730,'訂閱':27008,'日用品':19255,'其他':17453,
   '生活':15964,'數位':8667,'娛樂':5011
 };
+const EXPENSE_2026={
+  '家庭':623110,'稅金':557100,'車子':307123,'旅遊':301251,'房租':246675,
+  '貸款':232416,'飲食':201438,'購物':75265,'醫療':41896,'禮物':41420,
+  '交通':38616,'保險':37472,'訂閱':35718,'存錢':18000,'社交':15423,
+  '其他':14251,'生活':8938,'日用品':6694,'數位':4914,'娛樂':4599
+};
+const EXPENSE_ALL={'2024':EXPENSE_2024,'2025':EXPENSE_2025,'2026':EXPENSE_2026};
+
 let expYear=2024;
 let expBarChart=null,expTotalChart=null;
 
 function setExpYear(y){
   expYear=y;
-  ['2024','2025','both'].forEach(k=>{
+  ['2024','2025','2026','both'].forEach(k=>{
     const btn=document.getElementById('exp-btn-'+k);
     if(!btn)return;
     const active=String(k)===String(y);
@@ -680,30 +689,33 @@ function setExpYear(y){
 function renderExpense(){
   const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
   const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
-  const diff=t25-t24;
+  const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
+  const diff2526=t26-t25;
   document.getElementById('expense-cards').innerHTML=`
     <div class="card"><div class="card-label">2024 總支出</div><div class="card-value">$${fmt(t24)}</div></div>
     <div class="card"><div class="card-label">2025 總支出</div><div class="card-value">$${fmt(t25)}</div></div>
-    <div class="card"><div class="card-label">YoY 增減</div><div class="card-value ${diff>=0?'neg':'pos'}">${diff>=0?'▲':'▼'} $${fmt(Math.abs(diff))}</div></div>
-    <div class="card"><div class="card-label">2025 最大支出</div><div class="card-value" style="font-size:14px">旅遊 $${fmt(EXPENSE_2025['旅遊'])}</div></div>`;
+    <div class="card"><div class="card-label">2026 總支出</div><div class="card-value">$${fmt(t26)}</div></div>
+    <div class="card"><div class="card-label">25→26 增減</div><div class="card-value ${diff2526>=0?'neg':'pos'}">${diff2526>=0?'▲':'▼'} $${fmt(Math.abs(diff2526))}</div></div>
+    <div class="card"><div class="card-label">2026 最大支出</div><div class="card-value" style="font-size:13px">家庭 $${fmt(EXPENSE_2026['家庭'])}</div></div>`;
   setExpYear(expYear);
   renderExpTotal();
 }
 
 function renderExpBar(){
   document.getElementById('exp-bar-title').textContent=
-    expYear==='both'?'支出類別對比（2024 vs 2025）':expYear+'年 支出類別分佈';
+    expYear==='both'?'支出類別對比（三年）':expYear+'年 支出類別分佈';
   if(expBarChart)expBarChart.destroy();
   const gradient=['#1D9E75','#2A9278','#38867C','#45797F','#536D83','#606186','#6E558A','#7B488D','#893C91','#963094','#A3279A','#B01BA0','#BE0EA5'];
 
   if(expYear==='both'){
-    const allCats=[...new Set([...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025)])];
-    allCats.sort((a,b)=>(EXPENSE_2025[b]||0)-(EXPENSE_2025[a]||0));
+    const allCats=[...new Set([...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025),...Object.keys(EXPENSE_2026)])];
+    allCats.sort((a,b)=>(EXPENSE_2026[b]||0)-(EXPENSE_2026[a]||0));
     expBarChart=new Chart(document.getElementById('expBarChart'),{
       type:'bar',
       data:{labels:allCats,datasets:[
         {label:'2024',data:allCats.map(c=>EXPENSE_2024[c]||0),backgroundColor:'rgba(55,138,221,0.75)',borderRadius:3},
         {label:'2025',data:allCats.map(c=>EXPENSE_2025[c]||0),backgroundColor:'rgba(29,158,117,0.85)',borderRadius:3},
+        {label:'2026',data:allCats.map(c=>EXPENSE_2026[c]||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:3},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{position:'top',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)}}},
@@ -713,7 +725,7 @@ function renderExpBar(){
         }}
     });
   } else {
-    const data=expYear===2024?EXPENSE_2024:EXPENSE_2025;
+    const data=EXPENSE_ALL[String(expYear)];
     const cats=Object.entries(data).sort((a,b)=>b[1]-a[1]);
     const total=cats.reduce((s,[,v])=>s+v,0);
     expBarChart=new Chart(document.getElementById('expBarChart'),{
@@ -740,11 +752,12 @@ function renderExpTotal(){
   if(expTotalChart)expTotalChart.destroy();
   const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
   const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
+  const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
   expTotalChart=new Chart(document.getElementById('expTotalChart'),{
     type:'bar',
-    data:{labels:['2024','2025'],datasets:[{
-      data:[t24,t25],
-      backgroundColor:['rgba(55,138,221,0.75)','rgba(29,158,117,0.85)'],
+    data:{labels:['2024','2025','2026'],datasets:[{
+      data:[t24,t25,t26],
+      backgroundColor:['rgba(55,138,221,0.75)','rgba(29,158,117,0.85)','rgba(216,90,48,0.8)'],
       borderRadius:6
     }]},
     options:{responsive:true,maintainAspectRatio:false,
