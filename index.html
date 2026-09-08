@@ -66,6 +66,7 @@ tr:hover td{background:#fafaf8}
   <button class="tab" onclick="switchTab('salary')">薪資分析</button>
   <button class="tab" onclick="switchTab('invest')">投資分析</button>
   <button class="tab" onclick="switchTab('expense')">支出分析</button>
+  <button class="tab" onclick="switchTab('forecast')">預測分析</button>
   <button class="tab" onclick="switchTab('snapshot')">記錄快照</button>
   <button class="tab" onclick="switchTab('history')">歷史</button>
 </div>
@@ -148,6 +149,34 @@ tr:hover td{background:#fafaf8}
   <div class="chart-box">
     <h3>年度支出總額對比</h3>
     <div class="chart-wrap h220"><canvas id="expTotalChart"></canvas></div>
+  </div>
+</div>
+
+<!-- 預測分析 -->
+<div id="tab-forecast" class="section">
+  <div class="cards" id="forecast-cards"></div>
+  <div class="chart-box">
+    <h3>資產水位預測（2027–2031）</h3>
+    <div class="legend" id="forecast-legend"></div>
+    <div class="chart-wrap h300"><canvas id="forecastChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>假設條件</h3>
+    <div style="font-size:13px;color:#5F5E5A;line-height:1.9">
+      <div>📌 <b>基準點</b>：2026 年底資產 $15,931,278 NTD</div>
+      <div>💰 <b>年度儲蓄</b>：依 Yearly sheet 預測值（2027: 279萬 → 2030: 405萬）</div>
+      <div>📈 <b>投資 Alpha</b>：歷史平均年化超額報酬約 25.6%（2024–2026 平均）</div>
+      <div style="margin-top:8px;color:#888780;font-size:12px">悲觀情境：投資 alpha 5%／基準：25%／樂觀：40%</div>
+      <div style="color:#888780;font-size:12px">Alpha 定義 = 資產成長扣除當年儲蓄後的投資報酬率</div>
+    </div>
+    <div style="margin-top:1rem">
+      <div style="font-size:12px;color:#888780;margin-bottom:6px">調整投資報酬率假設：</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <input type="range" id="alpha-slider" min="0" max="50" value="25" step="1" style="width:180px;border:none;padding:0" oninput="updateAlpha(this.value)">
+        <span id="alpha-val" style="font-size:14px;font-weight:500;min-width:40px">25%</span>
+        <button class="btn btn-sm" onclick="updateAlpha(25)">重置</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -298,13 +327,14 @@ function calcTotal(s){
 }
 
 function switchTab(t){
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['overview','salary','invest','expense','snapshot','history'][i]===t));
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['overview','salary','invest','expense','forecast','snapshot','history'][i]===t));
   document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='overview')renderOverview();
   if(t==='salary')renderSalary();
   if(t==='invest')renderInvest();
   if(t==='expense')renderExpense();
+  if(t==='forecast')renderForecast();
   if(t==='snapshot')renderSnapForm();
   if(t==='history')renderHistory();
 }
@@ -767,6 +797,90 @@ function renderExpTotal(){
         y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
       }}
   });
+}
+
+/* ── 預測分析 ── */
+const HIST_ASSETS={2023:4702050,2024:7900281,2025:12807164,2026:15931278};
+const PROJ_SAVE={2027:2791159,2028:3326570,2029:3542207,2030:4048984,2031:4300000};
+const HIST_SAVE={2024:1652763,2025:1927555,2026:2336679};
+let forecastChart=null;
+let customAlpha=0.25;
+
+function calcForecast(alpha){
+  const base=HIST_ASSETS[2026];
+  const result={悲觀:[], 基準:[], 樂觀:[], 自訂:[]};
+  const alphas={悲觀:0.05, 基準:alpha, 樂觀:0.40, 自訂:alpha};
+  Object.entries(alphas).forEach(([name,a])=>{
+    let cur=base;
+    for(let y=2027;y<=2031;y++){
+      const save=PROJ_SAVE[y]||4000000;
+      cur=cur+save+(cur*a);
+      result[name].push({y,val:cur});
+    }
+  });
+  return result;
+}
+
+function renderForecast(){
+  const fc=calcForecast(customAlpha);
+  const base2031=fc['基準'][fc['基準'].length-1].val;
+  const bull2031=fc['樂觀'][fc['樂觀'].length-1].val;
+  const bear2031=fc['悲觀'][fc['悲觀'].length-1].val;
+  const base2030=fc['基準'][fc['基準'].length-2].val;
+
+  document.getElementById('forecast-cards').innerHTML=`
+    <div class="card"><div class="card-label">2030 基準預測</div><div class="card-value pos">$${fmtK(base2030)}</div></div>
+    <div class="card"><div class="card-label">2031 悲觀</div><div class="card-value">$${fmtK(bear2031)}</div></div>
+    <div class="card"><div class="card-label">2031 基準</div><div class="card-value pos">$${fmtK(base2031)}</div></div>
+    <div class="card"><div class="card-label">2031 樂觀</div><div class="card-value pos">$${fmtK(bull2031)}</div></div>`;
+
+  // Build chart data: historical + forecast
+  const histYears=Object.keys(HIST_ASSETS).map(Number);
+  const histVals=histYears.map(y=>HIST_ASSETS[y]);
+  const fcYears=[2026,...fc['基準'].map(d=>d.y)];
+
+  const colors={悲觀:'#888780', 基準:'#1D9E75', 樂觀:'#378ADD'};
+  document.getElementById('forecast-legend').innerHTML=
+    `<span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>`+
+    Object.entries(colors).map(([k,c])=>`<span><span class="ld" style="background:${c}"></span>${k}情境</span>`).join('')+
+    `<span><span class="ld" style="background:#D85A30;border:2px dashed #D85A30;background:transparent;width:16px;height:2px;border-radius:0"></span>自訂 (${Math.round(customAlpha*100)}%)</span>`;
+
+  if(forecastChart)forecastChart.destroy();
+  forecastChart=new Chart(document.getElementById('forecastChart'),{
+    type:'line',
+    data:{
+      labels:[...histYears,...fc['基準'].map(d=>d.y)],
+      datasets:[
+        {label:'實際',data:[...histVals,null],borderColor:'#2C2C2A',backgroundColor:'rgba(44,44,42,0.08)',borderWidth:2.5,fill:false,tension:0.3,pointRadius:4,pointBackgroundColor:'#2C2C2A'},
+        {label:'悲觀',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['悲觀'].map(d=>d.val)],borderColor:'#888780',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,4],fill:false,tension:0.3,pointRadius:3},
+        {label:'基準',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['基準'].map(d=>d.val)],borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.06)',borderWidth:2,fill:'-1',tension:0.3,pointRadius:3},
+        {label:'樂觀',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['樂觀'].map(d=>d.val)],borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.06)',borderWidth:1.5,borderDash:[3,3],fill:false,tension:0.3,pointRadius:3},
+        {label:`自訂(${Math.round(customAlpha*100)}%)`,data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['自訂'].map(d=>d.val)],borderColor:'#D85A30',backgroundColor:'transparent',borderWidth:2,fill:false,tension:0.3,pointRadius:3,pointBackgroundColor:'#D85A30'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:c=>c.parsed.y!=null?` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`:null,
+          filter:i=>i.parsed.y!=null
+        }}
+      },
+      scales:{
+        x:{ticks:{font:{size:11},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  document.getElementById('alpha-slider').value=Math.round(customAlpha*100);
+  document.getElementById('alpha-val').textContent=Math.round(customAlpha*100)+'%';
+}
+
+function updateAlpha(val){
+  customAlpha=parseInt(val)/100;
+  document.getElementById('alpha-slider').value=val;
+  document.getElementById('alpha-val').textContent=val+'%';
+  renderForecast();
 }
 
 renderOverview();
