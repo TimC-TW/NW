@@ -137,6 +137,7 @@ tr:hover td{background:#fafaf8}
 <div id="tab-expense" class="section">
   <div class="cards" id="expense-cards"></div>
   <div style="display:flex;gap:8px;margin-bottom:1rem">
+    <button class="btn btn-sm" id="exp-btn-2023" onclick="setExpYear(2023)">2023</button>
     <button class="btn btn-sm" id="exp-btn-2024" onclick="setExpYear(2024)" style="background:#2C2C2A;color:#fff;border-color:transparent">2024</button>
     <button class="btn btn-sm" id="exp-btn-2025" onclick="setExpYear(2025)">2025</button>
     <button class="btn btn-sm" id="exp-btn-2026" onclick="setExpYear(2026)">2026</button>
@@ -156,26 +157,19 @@ tr:hover td{background:#fafaf8}
 <div id="tab-forecast" class="section">
   <div class="cards" id="forecast-cards"></div>
   <div class="chart-box">
-    <h3>資產水位預測（2027–2031）</h3>
+    <h3>資產水位預測（對數線性回歸，158筆歷史資料）</h3>
     <div class="legend" id="forecast-legend"></div>
-    <div class="chart-wrap h300"><canvas id="forecastChart"></canvas></div>
+    <div class="chart-wrap h320"><canvas id="forecastChart"></canvas></div>
   </div>
   <div class="chart-box">
-    <h3>假設條件</h3>
-    <div style="font-size:13px;color:#5F5E5A;line-height:1.9">
-      <div>📌 <b>基準點</b>：2026 年底資產 $15,931,278 NTD</div>
-      <div>💰 <b>年度儲蓄</b>：依 Yearly sheet 預測值（2027: 279萬 → 2030: 405萬）</div>
-      <div>📈 <b>投資 Alpha</b>：歷史平均年化超額報酬約 25.6%（2024–2026 平均）</div>
-      <div style="margin-top:8px;color:#888780;font-size:12px">悲觀情境：投資 alpha 5%／基準：25%／樂觀：40%</div>
-      <div style="color:#888780;font-size:12px">Alpha 定義 = 資產成長扣除當年儲蓄後的投資報酬率</div>
-    </div>
-    <div style="margin-top:1rem">
-      <div style="font-size:12px;color:#888780;margin-bottom:6px">調整投資報酬率假設：</div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <input type="range" id="alpha-slider" min="0" max="50" value="25" step="1" style="width:180px;border:none;padding:0" oninput="updateAlpha(this.value)">
-        <span id="alpha-val" style="font-size:14px;font-weight:500;min-width:40px">25%</span>
-        <button class="btn btn-sm" onclick="updateAlpha(25)">重置</button>
-      </div>
+    <h3>模型說明</h3>
+    <div style="font-size:13px;color:#5F5E5A;line-height:2">
+      <div>📐 <b>模型</b>：遞減成長率回歸 — growth rate = a / (1 + b × asset)</div>
+      <div>📊 <b>資料</b>：158 筆歷史快照（2023/3 – 2026/9）</div>
+      <div>📉 <b>遞減效果</b>：資產越大，成長率自動降低</div>
+      <div>💰 <b>儲蓄</b>：依 Yearly sheet 預測值逐年累加（2027: 279萬 → 2031: 430萬）</div>
+      <div style="margin-top:6px;color:#888780;font-size:12px">±1σ 涵蓋約 68% 機率；±2σ 涵蓋約 95%</div>
+      <div style="color:#888780;font-size:12px">σ 隨時間拉長而擴大（不確定性累積）</div>
     </div>
   </div>
 </div>
@@ -680,6 +674,11 @@ function importJSON(e){
 }
 
 /* ── 支出分析 ── */
+const EXPENSE_2023={
+  '旅遊':456516,'稅金':416836,'房租':305603,'飲食':205332,
+  '其他':39022,'日用品':29127,'交通':26973,'社交':20825,
+  '禮物':20608,'購物':16989,'數位':9714,'醫療':1768,'娛樂':1151
+};
 const EXPENSE_2024={
   '車子':311203,'稅金':198585,'房租':161475,'飲食':118453,'貸款':116208,
   '購物':62560,'家庭':44447,'旅遊':44305,'其他':43287,'社交':31990,
@@ -698,14 +697,14 @@ const EXPENSE_2026={
   '交通':38616,'保險':37472,'訂閱':35718,'存錢':18000,'社交':15423,
   '其他':14251,'生活':8938,'日用品':6694,'數位':4914,'娛樂':4599
 };
-const EXPENSE_ALL={'2024':EXPENSE_2024,'2025':EXPENSE_2025,'2026':EXPENSE_2026};
+const EXPENSE_ALL={'2023':EXPENSE_2023,'2024':EXPENSE_2024,'2025':EXPENSE_2025,'2026':EXPENSE_2026};
 
 let expYear=2024;
 let expBarChart=null,expTotalChart=null;
 
 function setExpYear(y){
   expYear=y;
-  ['2024','2025','2026','both'].forEach(k=>{
+  ['2023','2024','2025','2026','both'].forEach(k=>{
     const btn=document.getElementById('exp-btn-'+k);
     if(!btn)return;
     const active=String(k)===String(y);
@@ -717,16 +716,17 @@ function setExpYear(y){
 }
 
 function renderExpense(){
+  const t23=Object.values(EXPENSE_2023).reduce((a,b)=>a+b,0);
   const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
   const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
   const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
   const diff2526=t26-t25;
   document.getElementById('expense-cards').innerHTML=`
+    <div class="card"><div class="card-label">2023 總支出</div><div class="card-value">$${fmt(t23)}</div><div class="card-sub muted">含 RMB×4.43</div></div>
     <div class="card"><div class="card-label">2024 總支出</div><div class="card-value">$${fmt(t24)}</div></div>
     <div class="card"><div class="card-label">2025 總支出</div><div class="card-value">$${fmt(t25)}</div></div>
     <div class="card"><div class="card-label">2026 總支出</div><div class="card-value">$${fmt(t26)}</div></div>
-    <div class="card"><div class="card-label">25→26 增減</div><div class="card-value ${diff2526>=0?'neg':'pos'}">${diff2526>=0?'▲':'▼'} $${fmt(Math.abs(diff2526))}</div></div>
-    <div class="card"><div class="card-label">2026 最大支出</div><div class="card-value" style="font-size:13px">家庭 $${fmt(EXPENSE_2026['家庭'])}</div></div>`;
+    <div class="card"><div class="card-label">25→26 增減</div><div class="card-value ${diff2526>=0?'neg':'pos'}">${diff2526>=0?'▲':'▼'} $${fmt(Math.abs(diff2526))}</div></div>`;
   setExpYear(expYear);
   renderExpTotal();
 }
@@ -738,11 +738,12 @@ function renderExpBar(){
   const gradient=['#1D9E75','#2A9278','#38867C','#45797F','#536D83','#606186','#6E558A','#7B488D','#893C91','#963094','#A3279A','#B01BA0','#BE0EA5'];
 
   if(expYear==='both'){
-    const allCats=[...new Set([...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025),...Object.keys(EXPENSE_2026)])];
+    const allCats=[...new Set([...Object.keys(EXPENSE_2023),...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025),...Object.keys(EXPENSE_2026)])];
     allCats.sort((a,b)=>(EXPENSE_2026[b]||0)-(EXPENSE_2026[a]||0));
     expBarChart=new Chart(document.getElementById('expBarChart'),{
       type:'bar',
       data:{labels:allCats,datasets:[
+        {label:'2023',data:allCats.map(c=>EXPENSE_2023[c]||0),backgroundColor:'rgba(186,117,23,0.75)',borderRadius:3},
         {label:'2024',data:allCats.map(c=>EXPENSE_2024[c]||0),backgroundColor:'rgba(55,138,221,0.75)',borderRadius:3},
         {label:'2025',data:allCats.map(c=>EXPENSE_2025[c]||0),backgroundColor:'rgba(29,158,117,0.85)',borderRadius:3},
         {label:'2026',data:allCats.map(c=>EXPENSE_2026[c]||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:3},
@@ -780,14 +781,15 @@ function renderExpBar(){
 
 function renderExpTotal(){
   if(expTotalChart)expTotalChart.destroy();
+  const t23=Object.values(EXPENSE_2023).reduce((a,b)=>a+b,0);
   const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
   const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
   const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
   expTotalChart=new Chart(document.getElementById('expTotalChart'),{
     type:'bar',
-    data:{labels:['2024','2025','2026'],datasets:[{
-      data:[t24,t25,t26],
-      backgroundColor:['rgba(55,138,221,0.75)','rgba(29,158,117,0.85)','rgba(216,90,48,0.8)'],
+    data:{labels:['2023','2024','2025','2026'],datasets:[{
+      data:[t23,t24,t25,t26],
+      backgroundColor:['rgba(186,117,23,0.75)','rgba(55,138,221,0.75)','rgba(29,158,117,0.85)','rgba(216,90,48,0.8)'],
       borderRadius:6
     }]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -799,88 +801,123 @@ function renderExpTotal(){
   });
 }
 
-/* ── 預測分析 ── */
-const HIST_ASSETS={2023:4702050,2024:7900281,2025:12807164,2026:15931278};
-const PROJ_SAVE={2027:2791159,2028:3326570,2029:3542207,2030:4048984,2031:4300000};
-const HIST_SAVE={2024:1652763,2025:1927555,2026:2336679};
-let forecastChart=null;
-let customAlpha=0.25;
+/* ── 預測分析（遞減成長率模型）── */
+// Model: growth_rate = a / (1 + b * asset), fitted on 158 data points
+// At 1,593萬: 57.6%/yr → At 5,000萬: 25.9%/yr → At 1億: 14.5%/yr
+const DR={a:1.21417406, b:7.3756141336e-8, sigma:0.055285};
+const ANNUAL_SAVES={2027:2791159,2028:3326570,2029:3542207,2030:4048984,2031:4300000};
 
-function calcForecast(alpha){
-  const base=HIST_ASSETS[2026];
-  const result={悲觀:[], 基準:[], 樂觀:[], 自訂:[]};
-  const alphas={悲觀:0.05, 基準:alpha, 樂觀:0.40, 自訂:alpha};
-  Object.entries(alphas).forEach(([name,a])=>{
-    let cur=base;
-    for(let y=2027;y<=2031;y++){
-      const save=PROJ_SAVE[y]||4000000;
-      cur=cur+save+(cur*a);
-      result[name].push({y,val:cur});
-    }
-  });
-  return result;
+function drRate(asset){return DR.a/(1+DR.b*asset);}
+
+function drForecast(startAsset,startDate,targetDate,sigmaM=0){
+  const dt=1/12;
+  const t0=new Date(startDate),t1=new Date(targetDate);
+  const months=Math.round((t1-t0)/(30.44*24*3600*1000));
+  if(months<=0)return startAsset;
+  let cur=startAsset;
+  const t0date=new Date(startDate);
+  for(let m=0;m<months;m++){
+    const d=new Date(t0date);d.setMonth(d.getMonth()+m);
+    const y=d.getFullYear();
+    const save=(ANNUAL_SAVES[y]||4300000)/12;
+    cur=cur*Math.exp(drRate(cur)*dt)+save;
+  }
+  return cur*Math.exp(sigmaM*DR.sigma*Math.sqrt(months));
 }
 
+let forecastChart=null;
+
 function renderForecast(){
-  const fc=calcForecast(customAlpha);
-  const base2031=fc['基準'][fc['基準'].length-1].val;
-  const bull2031=fc['樂觀'][fc['樂觀'].length-1].val;
-  const bear2031=fc['悲觀'][fc['悲觀'].length-1].val;
-  const base2030=fc['基準'][fc['基準'].length-2].val;
+  const START=15931278, SDATE='2026-09-06';
+  const fcYears=[2027,2028,2029,2030,2031];
+  const fcData=fcYears.map(y=>({
+    y, x:`${y}-06-30`,
+    mid:drForecast(START,SDATE,`${y}-06-30`, 0),
+    lo1:drForecast(START,SDATE,`${y}-06-30`,-1),
+    hi1:drForecast(START,SDATE,`${y}-06-30`, 1),
+    lo2:drForecast(START,SDATE,`${y}-06-30`,-2),
+    hi2:drForecast(START,SDATE,`${y}-06-30`, 2),
+  }));
+
+  const d28=fcData[1],d30=fcData[3],d31=fcData[4];
+  const rNow=(drRate(START)*100).toFixed(1);
+  const r50M =(drRate(50e6)*100).toFixed(1);
+  const r100M=(drRate(100e6)*100).toFixed(1);
 
   document.getElementById('forecast-cards').innerHTML=`
-    <div class="card"><div class="card-label">2030 基準預測</div><div class="card-value pos">$${fmtK(base2030)}</div></div>
-    <div class="card"><div class="card-label">2031 悲觀</div><div class="card-value">$${fmtK(bear2031)}</div></div>
-    <div class="card"><div class="card-label">2031 基準</div><div class="card-value pos">$${fmtK(base2031)}</div></div>
-    <div class="card"><div class="card-label">2031 樂觀</div><div class="card-value pos">$${fmtK(bull2031)}</div></div>`;
+    <div class="card"><div class="card-label">現在成長率</div><div class="card-value pos">${rNow}%/yr</div><div class="card-sub muted">資產 1,593萬時</div></div>
+    <div class="card"><div class="card-label">5,000萬時</div><div class="card-value">${r50M}%/yr</div><div class="card-sub muted">預計成長率</div></div>
+    <div class="card"><div class="card-label">1億時</div><div class="card-value">${r100M}%/yr</div><div class="card-sub muted">預計成長率</div></div>
+    <div class="card"><div class="card-label">2028 中位</div><div class="card-value pos">$${fmtK(d28.mid)}</div></div>
+    <div class="card"><div class="card-label">2030 中位</div><div class="card-value pos">$${fmtK(d30.mid)}</div><div class="card-sub muted">-2σ $${fmtK(d30.lo2)} ～ +2σ $${fmtK(d30.hi2)}</div></div>
+    <div class="card"><div class="card-label">2031 中位</div><div class="card-value pos">$${fmtK(d31.mid)}</div></div>`;
 
-  // Build chart data: historical + forecast
-  const histYears=Object.keys(HIST_ASSETS).map(Number);
-  const histVals=histYears.map(y=>HIST_ASSETS[y]);
-  const fcYears=[2026,...fc['基準'].map(d=>d.y)];
+  const histData=[
+    {x:'2023-03-30',y:2659204},{x:'2023-06-23',y:3508742},{x:'2023-12-25',y:4702050},
+    {x:'2024-03-25',y:6192429},{x:'2024-07-01',y:6730189},{x:'2024-12-31',y:7900281},
+    {x:'2025-03-25',y:8173973},{x:'2025-06-25',y:9666414},{x:'2025-09-23',y:13459299},
+    {x:'2025-12-31',y:12807164},{x:'2026-03-25',y:15095931},{x:'2026-06-25',y:17611932},
+    {x:'2026-09-06',y:15931279},
+  ];
 
-  const colors={悲觀:'#888780', 基準:'#1D9E75', 樂觀:'#378ADD'};
-  document.getElementById('forecast-legend').innerHTML=
-    `<span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>`+
-    Object.entries(colors).map(([k,c])=>`<span><span class="ld" style="background:${c}"></span>${k}情境</span>`).join('')+
-    `<span><span class="ld" style="background:#D85A30;border:2px dashed #D85A30;background:transparent;width:16px;height:2px;border-radius:0"></span>自訂 (${Math.round(customAlpha*100)}%)</span>`;
+  // Model fit line over historical range
+  const fitLine=[];
+  for(let m=0;m<=43;m++){
+    const d=new Date('2023-03-30');d.setMonth(d.getMonth()+m);
+    const ds=d.toISOString().slice(0,10);
+    fitLine.push({x:ds,y:drForecast(2659204,'2023-03-30',ds,0)});
+  }
+
+  const anchor={x:SDATE,y:START};
 
   if(forecastChart)forecastChart.destroy();
   forecastChart=new Chart(document.getElementById('forecastChart'),{
     type:'line',
-    data:{
-      labels:[...histYears,...fc['基準'].map(d=>d.y)],
-      datasets:[
-        {label:'實際',data:[...histVals,null],borderColor:'#2C2C2A',backgroundColor:'rgba(44,44,42,0.08)',borderWidth:2.5,fill:false,tension:0.3,pointRadius:4,pointBackgroundColor:'#2C2C2A'},
-        {label:'悲觀',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['悲觀'].map(d=>d.val)],borderColor:'#888780',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,4],fill:false,tension:0.3,pointRadius:3},
-        {label:'基準',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['基準'].map(d=>d.val)],borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.06)',borderWidth:2,fill:'-1',tension:0.3,pointRadius:3},
-        {label:'樂觀',data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['樂觀'].map(d=>d.val)],borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.06)',borderWidth:1.5,borderDash:[3,3],fill:false,tension:0.3,pointRadius:3},
-        {label:`自訂(${Math.round(customAlpha*100)}%)`,data:[...Array(histYears.length-1).fill(null),histVals[histYears.length-1],...fc['自訂'].map(d=>d.val)],borderColor:'#D85A30',backgroundColor:'transparent',borderWidth:2,fill:false,tension:0.3,pointRadius:3,pointBackgroundColor:'#D85A30'},
-      ]
-    },
+    data:{datasets:[
+      {label:'+2σ (95%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.hi2}))],
+        borderColor:'rgba(55,138,221,0.25)',backgroundColor:'rgba(55,138,221,0.06)',
+        borderWidth:1,borderDash:[3,3],fill:'+1',pointRadius:0,tension:0.4},
+      {label:'+1σ (68%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.hi1}))],
+        borderColor:'rgba(55,138,221,0.45)',backgroundColor:'rgba(55,138,221,0.10)',
+        borderWidth:1.5,borderDash:[4,3],fill:'+1',pointRadius:0,tension:0.4},
+      {label:'中位預測',data:[anchor,...fcData.map(d=>({x:d.x,y:d.mid}))],
+        borderColor:'#1D9E75',backgroundColor:'transparent',
+        borderWidth:2.5,fill:false,pointRadius:5,pointBackgroundColor:'#1D9E75',tension:0.4},
+      {label:'-1σ (68%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.lo1}))],
+        borderColor:'rgba(55,138,221,0.45)',backgroundColor:'rgba(55,138,221,0.10)',
+        borderWidth:1.5,borderDash:[4,3],fill:'-1',pointRadius:0,tension:0.4},
+      {label:'-2σ (95%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.lo2}))],
+        borderColor:'rgba(55,138,221,0.25)',backgroundColor:'rgba(55,138,221,0.06)',
+        borderWidth:1,borderDash:[3,3],fill:'-1',pointRadius:0,tension:0.4},
+      {label:'模型擬合',data:fitLine,
+        borderColor:'rgba(29,158,117,0.25)',backgroundColor:'transparent',
+        borderWidth:1,borderDash:[2,4],fill:false,pointRadius:0,tension:0.4},
+      {label:'實際資產',data:histData,
+        borderColor:'#2C2C2A',backgroundColor:'transparent',
+        borderWidth:2,fill:false,pointRadius:3,pointBackgroundColor:'#2C2C2A',tension:0.3},
+    ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{
-          label:c=>c.parsed.y!=null?` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`:null,
-          filter:i=>i.parsed.y!=null
-        }}
+        tooltip:{
+          filter:i=>['實際資產','中位預測','+1σ (68%)','-1σ (68%)','+2σ (95%)','-2σ (95%)'].includes(i.dataset.label),
+          callbacks:{title:it=>it[0].raw.x,label:c=>` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`}
+        }
       },
       scales:{
-        x:{ticks:{font:{size:11},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
-        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+        x:{type:'time',time:{unit:'year',displayFormats:{year:'yyyy'}},
+          ticks:{font:{size:11},color:'#888780'},grid:{color:'rgba(0,0,0,0.05)'}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},
+          grid:{color:'rgba(0,0,0,0.05)'}}
       }}
   });
 
-  document.getElementById('alpha-slider').value=Math.round(customAlpha*100);
-  document.getElementById('alpha-val').textContent=Math.round(customAlpha*100)+'%';
-}
-
-function updateAlpha(val){
-  customAlpha=parseInt(val)/100;
-  document.getElementById('alpha-slider').value=val;
-  document.getElementById('alpha-val').textContent=val+'%';
-  renderForecast();
+  document.getElementById('forecast-legend').innerHTML=`
+    <span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>
+    <span><span class="ld" style="background:#1D9E75"></span>中位預測</span>
+    <span><span class="ld" style="background:rgba(55,138,221,0.45)"></span>±1σ（68%）</span>
+    <span><span class="ld" style="background:rgba(55,138,221,0.22)"></span>±2σ（95%）</span>
+    <span><span class="ld" style="background:rgba(29,158,117,0.22)"></span>模型擬合線</span>`;
 }
 
 renderOverview();
