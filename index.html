@@ -136,19 +136,63 @@ tr:hover td{background:#fafaf8}
 <!-- 支出分析 -->
 <div id="tab-expense" class="section">
   <div class="cards" id="expense-cards"></div>
-  <div style="display:flex;gap:8px;margin-bottom:1rem">
+
+  <!-- Mode toggle -->
+  <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+    <span style="font-size:12px;color:#888780">模式：</span>
+    <button class="btn btn-sm" id="exp-mode-single" onclick="setExpMode('single')" style="background:#2C2C2A;color:#fff;border-color:transparent">單年</button>
+    <button class="btn btn-sm" id="exp-mode-compare" onclick="setExpMode('compare')">對比任兩年</button>
+    <button class="btn btn-sm" id="exp-mode-all" onclick="setExpMode('all')">全年對比</button>
+  </div>
+
+  <!-- Single year selector -->
+  <div id="exp-single-ctrl" style="display:flex;gap:8px;margin-bottom:1rem">
     <button class="btn btn-sm" id="exp-btn-2023" onclick="setExpYear(2023)">2023</button>
     <button class="btn btn-sm" id="exp-btn-2024" onclick="setExpYear(2024)" style="background:#2C2C2A;color:#fff;border-color:transparent">2024</button>
     <button class="btn btn-sm" id="exp-btn-2025" onclick="setExpYear(2025)">2025</button>
     <button class="btn btn-sm" id="exp-btn-2026" onclick="setExpYear(2026)">2026</button>
-    <button class="btn btn-sm" id="exp-btn-both" onclick="setExpYear('both')">對比</button>
   </div>
+
+  <!-- Compare year selector -->
+  <div id="exp-compare-ctrl" style="display:none;margin-bottom:1rem">
+    <div style="font-size:12px;color:#888780;margin-bottom:6px">選擇要對比的兩年：</div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;color:#888780">年份 A：</span>
+        <select id="cmp-a" onchange="renderCompare()" style="padding:5px 8px;font-size:12px;width:auto">
+          <option value="2023">2023</option>
+          <option value="2024" selected>2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;color:#888780">年份 B：</span>
+        <select id="cmp-b" onchange="renderCompare()" style="padding:5px 8px;font-size:12px;width:auto">
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+          <option value="2025" selected>2025</option>
+          <option value="2026">2026</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div class="chart-box">
     <h3 id="exp-bar-title">支出類別分佈</h3>
     <div class="chart-wrap" style="height:320px"><canvas id="expBarChart"></canvas></div>
   </div>
+
+  <!-- Compare summary -->
+  <div id="exp-compare-summary" style="display:none">
+    <div class="chart-box">
+      <h3 id="cmp-summary-title">對比摘要</h3>
+      <div id="cmp-summary-body"></div>
+    </div>
+  </div>
+
   <div class="chart-box">
-    <h3>年度支出總額對比</h3>
+    <h3>年度支出總額</h3>
     <div class="chart-wrap h220"><canvas id="expTotalChart"></canvas></div>
   </div>
 </div>
@@ -698,13 +742,32 @@ const EXPENSE_2026={
   '其他':14251,'生活':8938,'日用品':6694,'數位':4914,'娛樂':4599
 };
 const EXPENSE_ALL={'2023':EXPENSE_2023,'2024':EXPENSE_2024,'2025':EXPENSE_2025,'2026':EXPENSE_2026};
+const EXP_COLORS={'2023':'rgba(186,117,23,0.8)','2024':'rgba(55,138,221,0.8)','2025':'rgba(29,158,117,0.85)','2026':'rgba(216,90,48,0.8)'};
 
-let expYear=2024;
-let expBarChart=null,expTotalChart=null;
+let expYear=2024, expMode='single';
+let expBarChart=null, expTotalChart=null;
+
+function setExpMode(mode){
+  expMode=mode;
+  ['single','compare','all'].forEach(m=>{
+    const btn=document.getElementById('exp-mode-'+m);
+    if(!btn)return;
+    const active=m===mode;
+    btn.style.background=active?'#2C2C2A':'#fff';
+    btn.style.color=active?'#fff':'#2C2C2A';
+    btn.style.borderColor=active?'transparent':'#D3D1C7';
+  });
+  document.getElementById('exp-single-ctrl').style.display=mode==='single'?'flex':'none';
+  document.getElementById('exp-compare-ctrl').style.display=mode==='compare'?'block':'none';
+  document.getElementById('exp-compare-summary').style.display=mode==='compare'?'block':'none';
+  if(mode==='single') renderExpBar();
+  else if(mode==='compare') renderCompare();
+  else renderExpAll();
+}
 
 function setExpYear(y){
   expYear=y;
-  ['2023','2024','2025','2026','both'].forEach(k=>{
+  ['2023','2024','2025','2026'].forEach(k=>{
     const btn=document.getElementById('exp-btn-'+k);
     if(!btn)return;
     const active=String(k)===String(y);
@@ -716,80 +779,136 @@ function setExpYear(y){
 }
 
 function renderExpense(){
-  const t23=Object.values(EXPENSE_2023).reduce((a,b)=>a+b,0);
-  const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
-  const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
-  const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
-  const diff2526=t26-t25;
+  const totals=Object.fromEntries(Object.entries(EXPENSE_ALL).map(([y,d])=>[y,Object.values(d).reduce((a,b)=>a+b,0)]));
+  const diff=totals['2026']-totals['2025'];
   document.getElementById('expense-cards').innerHTML=`
-    <div class="card"><div class="card-label">2023 總支出</div><div class="card-value">$${fmt(t23)}</div><div class="card-sub muted">含 RMB×4.43</div></div>
-    <div class="card"><div class="card-label">2024 總支出</div><div class="card-value">$${fmt(t24)}</div></div>
-    <div class="card"><div class="card-label">2025 總支出</div><div class="card-value">$${fmt(t25)}</div></div>
-    <div class="card"><div class="card-label">2026 總支出</div><div class="card-value">$${fmt(t26)}</div></div>
-    <div class="card"><div class="card-label">25→26 增減</div><div class="card-value ${diff2526>=0?'neg':'pos'}">${diff2526>=0?'▲':'▼'} $${fmt(Math.abs(diff2526))}</div></div>`;
-  setExpYear(expYear);
+    <div class="card"><div class="card-label">2023 總支出</div><div class="card-value">$${fmt(totals['2023'])}</div><div class="card-sub muted">RMB×4.43</div></div>
+    <div class="card"><div class="card-label">2024 總支出</div><div class="card-value">$${fmt(totals['2024'])}</div></div>
+    <div class="card"><div class="card-label">2025 總支出</div><div class="card-value">$${fmt(totals['2025'])}</div></div>
+    <div class="card"><div class="card-label">2026 總支出</div><div class="card-value">$${fmt(totals['2026'])}</div></div>
+    <div class="card"><div class="card-label">25→26 增減</div><div class="card-value ${diff>=0?'neg':'pos'}">${diff>=0?'▲':'▼'} $${fmt(Math.abs(diff))}</div></div>`;
+  setExpMode(expMode);
   renderExpTotal();
 }
 
 function renderExpBar(){
-  document.getElementById('exp-bar-title').textContent=
-    expYear==='both'?'支出類別對比（三年）':expYear+'年 支出類別分佈';
-  if(expBarChart)expBarChart.destroy();
+  const data=EXPENSE_ALL[String(expYear)];
+  const cats=Object.entries(data).sort((a,b)=>b[1]-a[1]);
+  const total=cats.reduce((s,[,v])=>s+v,0);
   const gradient=['#1D9E75','#2A9278','#38867C','#45797F','#536D83','#606186','#6E558A','#7B488D','#893C91','#963094','#A3279A','#B01BA0','#BE0EA5'];
+  document.getElementById('exp-bar-title').textContent=expYear+'年 支出類別分佈';
+  if(expBarChart)expBarChart.destroy();
+  expBarChart=new Chart(document.getElementById('expBarChart'),{
+    type:'bar',
+    data:{labels:cats.map(([k])=>k),datasets:[{
+      label:'支出',data:cats.map(([,v])=>v),
+      backgroundColor:cats.map((_,i)=>gradient[Math.min(i,gradient.length-1)]),
+      borderRadius:4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` $${fmt(c.parsed.y)} (${(c.parsed.y/total*100).toFixed(1)}%)`}}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+}
 
-  if(expYear==='both'){
-    const allCats=[...new Set([...Object.keys(EXPENSE_2023),...Object.keys(EXPENSE_2024),...Object.keys(EXPENSE_2025),...Object.keys(EXPENSE_2026)])];
-    allCats.sort((a,b)=>(EXPENSE_2026[b]||0)-(EXPENSE_2026[a]||0));
-    expBarChart=new Chart(document.getElementById('expBarChart'),{
-      type:'bar',
-      data:{labels:allCats,datasets:[
-        {label:'2023',data:allCats.map(c=>EXPENSE_2023[c]||0),backgroundColor:'rgba(186,117,23,0.75)',borderRadius:3},
-        {label:'2024',data:allCats.map(c=>EXPENSE_2024[c]||0),backgroundColor:'rgba(55,138,221,0.75)',borderRadius:3},
-        {label:'2025',data:allCats.map(c=>EXPENSE_2025[c]||0),backgroundColor:'rgba(29,158,117,0.85)',borderRadius:3},
-        {label:'2026',data:allCats.map(c=>EXPENSE_2026[c]||0),backgroundColor:'rgba(216,90,48,0.8)',borderRadius:3},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'top',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>' $'+fmt(c.parsed.y)}}},
-        scales:{
-          x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
-          y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
-        }}
-    });
-  } else {
-    const data=EXPENSE_ALL[String(expYear)];
-    const cats=Object.entries(data).sort((a,b)=>b[1]-a[1]);
-    const total=cats.reduce((s,[,v])=>s+v,0);
-    expBarChart=new Chart(document.getElementById('expBarChart'),{
-      type:'bar',
-      data:{labels:cats.map(([k])=>k),datasets:[{
-        label:'支出',data:cats.map(([,v])=>v),
-        backgroundColor:cats.map((_,i)=>gradient[Math.min(i,gradient.length-1)]),
-        borderRadius:4
-      }]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
-          const pct=(c.parsed.y/total*100).toFixed(1);
-          return` $${fmt(c.parsed.y)} (${pct}%)`;
-        }}}},
-        scales:{
-          x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
-          y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
-        }}
-    });
-  }
+function renderExpAll(){
+  const allCats=[...new Set(Object.values(EXPENSE_ALL).flatMap(d=>Object.keys(d)))];
+  allCats.sort((a,b)=>(EXPENSE_2026[b]||0)-(EXPENSE_2026[a]||0));
+  document.getElementById('exp-bar-title').textContent='四年支出類別對比';
+  if(expBarChart)expBarChart.destroy();
+  expBarChart=new Chart(document.getElementById('expBarChart'),{
+    type:'bar',
+    data:{labels:allCats,datasets:Object.entries(EXPENSE_ALL).map(([y,d])=>({
+      label:y,data:allCats.map(c=>d[c]||0),
+      backgroundColor:EXP_COLORS[y],borderRadius:3
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>` $${fmt(c.parsed.y)}`}}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+}
+
+function renderCompare(){
+  const ya=document.getElementById('cmp-a')?.value||'2024';
+  const yb=document.getElementById('cmp-b')?.value||'2025';
+  const da=EXPENSE_ALL[ya]||{}, db=EXPENSE_ALL[yb]||{};
+  const allCats=[...new Set([...Object.keys(da),...Object.keys(db)])];
+  allCats.sort((a,b)=>(db[b]||0)-(db[a]||0));
+  const ta=Object.values(da).reduce((s,v)=>s+v,0);
+  const tb=Object.values(db).reduce((s,v)=>s+v,0);
+
+  document.getElementById('exp-bar-title').textContent=`${ya} vs ${yb} 支出對比`;
+  if(expBarChart)expBarChart.destroy();
+  expBarChart=new Chart(document.getElementById('expBarChart'),{
+    type:'bar',
+    data:{labels:allCats,datasets:[
+      {label:ya,data:allCats.map(c=>da[c]||0),backgroundColor:EXP_COLORS[ya],borderRadius:3},
+      {label:yb,data:allCats.map(c=>db[c]||0),backgroundColor:EXP_COLORS[yb],borderRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:12}}},tooltip:{callbacks:{label:c=>` $${fmt(c.parsed.y)}`}}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#888780'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#888780',callback:v=>'$'+fmtK(v)},grid:{color:'rgba(0,0,0,0.05)'}}
+      }}
+  });
+
+  // Summary
+  document.getElementById('cmp-summary-title').textContent=`${ya} → ${yb} 對比摘要`;
+  const diff=tb-ta;
+  const diffPct=((tb-ta)/ta*100).toFixed(1);
+
+  // Category changes
+  const increased=[], decreased=[], newCats=[], gone=[];
+  allCats.forEach(c=>{
+    const a=da[c]||0, b=db[c]||0;
+    if(!da[c]&&db[c]) newCats.push({c,b});
+    else if(da[c]&&!db[c]) gone.push({c,a});
+    else if(b>a) increased.push({c,a,b,d:b-a,pct:((b-a)/a*100).toFixed(0)});
+    else if(b<a) decreased.push({c,a,b,d:a-b,pct:((a-b)/a*100).toFixed(0)});
+  });
+  increased.sort((x,y)=>y.d-x.d);
+  decreased.sort((x,y)=>y.d-x.d);
+
+  const row=(label,items,sign,cls)=>items.length?`
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:500;color:#888780;margin-bottom:6px">${label}</div>
+      ${items.slice(0,5).map(i=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid #f0ede6;font-size:13px">
+          <span>${i.c}</span>
+          <span class="${cls}">${sign}$${fmt(i.d)} (${sign}${i.pct}%)</span>
+        </div>`).join('')}
+    </div>`:'';
+
+  document.getElementById('cmp-summary-body').innerHTML=`
+    <div class="cards" style="margin-bottom:1rem">
+      <div class="card"><div class="card-label">${ya} 總支出</div><div class="card-value">$${fmt(ta)}</div></div>
+      <div class="card"><div class="card-label">${yb} 總支出</div><div class="card-value">$${fmt(tb)}</div></div>
+      <div class="card"><div class="card-label">差額</div><div class="card-value ${diff>=0?'neg':'pos'}">${diff>=0?'▲+':'▼-'}$${fmt(Math.abs(diff))}</div></div>
+      <div class="card"><div class="card-label">變化幅度</div><div class="card-value ${diff>=0?'neg':'pos'}">${diff>=0?'+':''}${diffPct}%</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>${row('📈 增加最多',increased,'+','neg')}</div>
+      <div>${row('📉 減少最多',decreased,'-','pos')}</div>
+    </div>
+    ${newCats.length?`<div style="font-size:12px;color:#888780;margin-top:8px">🆕 新增類別：${newCats.map(i=>i.c+'（$'+fmt(i.b)+'）').join('、')}</div>`:''}
+    ${gone.length?`<div style="font-size:12px;color:#888780;margin-top:4px">❌ 消失類別：${gone.map(i=>i.c+'（原 $'+fmt(i.a)+'）').join('、')}</div>`:''}`;
 }
 
 function renderExpTotal(){
   if(expTotalChart)expTotalChart.destroy();
-  const t23=Object.values(EXPENSE_2023).reduce((a,b)=>a+b,0);
-  const t24=Object.values(EXPENSE_2024).reduce((a,b)=>a+b,0);
-  const t25=Object.values(EXPENSE_2025).reduce((a,b)=>a+b,0);
-  const t26=Object.values(EXPENSE_2026).reduce((a,b)=>a+b,0);
+  const totals=Object.entries(EXPENSE_ALL).map(([y,d])=>Object.values(d).reduce((a,b)=>a+b,0));
   expTotalChart=new Chart(document.getElementById('expTotalChart'),{
     type:'bar',
-    data:{labels:['2023','2024','2025','2026'],datasets:[{
-      data:[t23,t24,t25,t26],
-      backgroundColor:['rgba(186,117,23,0.75)','rgba(55,138,221,0.75)','rgba(29,158,117,0.85)','rgba(216,90,48,0.8)'],
+    data:{labels:Object.keys(EXPENSE_ALL),datasets:[{
+      data:totals,
+      backgroundColor:Object.keys(EXPENSE_ALL).map(y=>EXP_COLORS[y]),
       borderRadius:6
     }]},
     options:{responsive:true,maintainAspectRatio:false,
