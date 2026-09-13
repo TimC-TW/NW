@@ -201,9 +201,17 @@ tr:hover td{background:#fafaf8}
 <div id="tab-forecast" class="section">
   <div class="cards" id="forecast-cards"></div>
   <div class="chart-box">
-    <h3>資產水位預測（對數線性回歸，158筆歷史資料）</h3>
+    <h3>資產水位預測（遞減成長率模型）<button onclick="if(forecastChart)forecastChart.resetZoom()" style="float:right;font-size:11px;padding:2px 8px;border:0.5px solid #D3D1C7;border-radius:4px;background:#fff;cursor:pointer;color:#888780">重置縮放</button></h3>
+    <div style="font-size:11px;color:#888780;margin-bottom:6px">滾輪縮放・拖曳平移</div>
     <div class="legend" id="forecast-legend"></div>
     <div class="chart-wrap h320"><canvas id="forecastChart"></canvas></div>
+  </div>
+  <div class="chart-box" style="overflow-x:auto">
+    <h3>預測數字明細</h3>
+    <table id="forecast-table">
+      <thead><tr><th>年份</th><th>-2σ（5%）</th><th>-1σ（16%）</th><th>中位預測</th><th>+1σ（84%）</th><th>+2σ（95%）</th><th>預計成長率</th></tr></thead>
+      <tbody id="forecast-table-body"></tbody>
+    </table>
   </div>
   <div class="chart-box">
     <h3>模型說明</h3>
@@ -1016,11 +1024,17 @@ function renderForecast(){
         borderWidth:2,fill:false,pointRadius:3,pointBackgroundColor:'#2C2C2A',tension:0.3},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:false},
         tooltip:{
           filter:i=>['實際資產','中位預測','+1σ (68%)','-1σ (68%)','+2σ (95%)','-2σ (95%)'].includes(i.dataset.label),
           callbacks:{title:it=>it[0].raw.x,label:c=>` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`}
+        },
+        zoom:{
+          zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},
+          pan:{enabled:true,mode:'x'},
+          limits:{x:{minRange:1000*60*60*24*90}}
         }
       },
       scales:{
@@ -1030,6 +1044,23 @@ function renderForecast(){
           grid:{color:'rgba(0,0,0,0.05)'}}
       }}
   });
+
+  // Detail table
+  const prevAsset = {2026: 15931278};
+  document.getElementById('forecast-table-body').innerHTML = fcData.map((d,i)=>{
+    const prevMid = i===0 ? 15931278 : fcData[i-1].mid;
+    const impliedRate = ((d.mid / prevMid) - 1) * 100;
+    const rateAtMid = (drRate(d.mid)*100).toFixed(1);
+    return`<tr>
+      <td><strong>${d.y}</strong></td>
+      <td class="muted">$${fmt(d.lo2)}</td>
+      <td class="muted">$${fmt(d.lo1)}</td>
+      <td class="pos"><strong>$${fmt(d.mid)}</strong></td>
+      <td class="muted">$${fmt(d.hi1)}</td>
+      <td class="muted">$${fmt(d.hi2)}</td>
+      <td style="color:#888780;font-size:12px">${rateAtMid}%/yr</td>
+    </tr>`;
+  }).join('');
 
   document.getElementById('forecast-legend').innerHTML=`
     <span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>
