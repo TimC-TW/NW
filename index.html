@@ -107,8 +107,8 @@ tr:hover td{background:#fafaf8}
     <div class="chart-wrap h260"><canvas id="saveChart"></canvas></div>
   </div>
   <div class="chart-box">
-    <h3>年化資產成長率（基於 Dynamic Total）</h3>
-    <div class="legend"><span><span class="ld" style="background:#D85A30"></span>YoY 成長率 %</span></div>
+    <h3>年化資產成長率（基於 Dynamic Total，2023 為起始日至年底年化）</h3>
+    <div class="legend"><span><span class="ld" style="background:#1D9E75"></span>年化成長率 %/yr</span></div>
     <div class="chart-wrap h200"><canvas id="cagrChart"></canvas></div>
   </div>
 </div>
@@ -200,29 +200,50 @@ tr:hover td{background:#fafaf8}
 <!-- 預測分析 -->
 <div id="tab-forecast" class="section">
   <div class="cards" id="forecast-cards"></div>
+
   <div class="chart-box">
-    <h3>資產水位預測（遞減成長率模型）<button onclick="if(forecastChart)forecastChart.resetZoom()" style="float:right;font-size:11px;padding:2px 8px;border:0.5px solid #D3D1C7;border-radius:4px;background:#fff;cursor:pointer;color:#888780">重置縮放</button></h3>
+    <h3>假設條件</h3>
+    <div style="font-size:13px;color:#5F5E5A;line-height:1.9">
+      <div>💰 <b>薪資儲蓄</b>：依 Yearly sheet 預測值逐年累加（2027: 279萬 → 2031: 430萬）</div>
+      <div>📈 <b>投資報酬率</b>：由你自行設定假設（見下方滑桿），套用在總資產的可投資部位上</div>
+      <div style="margin-top:8px;color:#A32D2D;font-size:12px">⚠️ 你的歷史投資報酬率（2023-2026 美股年化 108%~185%）主要來自小額本金重倉單一標的的爆發性成長，本金放大或市場降溫後難以持續，故不採用歷史值直接外推</div>
+    </div>
+    <div style="margin-top:1rem;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div style="font-size:12px;color:#888780;margin-bottom:6px">投資報酬率假設（年化 %）</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" id="ret-slider" min="0" max="40" value="12" step="1" style="width:200px;border:none;padding:0" oninput="updateReturn(this.value)">
+          <span id="ret-val" style="font-size:15px;font-weight:500;min-width:44px">12%</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="updateReturn(8)">保守8%</button>
+            <button class="btn btn-sm" onclick="updateReturn(12)">中性12%</button>
+            <button class="btn btn-sm" onclick="updateReturn(20)">積極20%</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#888780;margin-bottom:6px">可投資部位佔總資產比例（其餘視為無報酬的固定資產/現金）</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" id="ratio-slider" min="0" max="100" value="75" step="5" style="width:200px;border:none;padding:0" oninput="updateRatio(this.value)">
+          <span id="ratio-val" style="font-size:15px;font-weight:500;min-width:44px">75%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-box">
+    <h3>資產水位預測<button onclick="if(forecastChart)forecastChart.resetZoom()" style="float:right;font-size:11px;padding:2px 8px;border:0.5px solid #D3D1C7;border-radius:4px;background:#fff;cursor:pointer;color:#888780">重置縮放</button></h3>
     <div style="font-size:11px;color:#888780;margin-bottom:6px">滾輪縮放・拖曳平移</div>
     <div class="legend" id="forecast-legend"></div>
     <div class="chart-wrap h320"><canvas id="forecastChart"></canvas></div>
   </div>
+
   <div class="chart-box" style="overflow-x:auto">
     <h3>預測數字明細</h3>
     <table id="forecast-table">
-      <thead><tr><th>年份</th><th>-2σ（5%）</th><th>-1σ（16%）</th><th>中位預測</th><th>+1σ（84%）</th><th>+2σ（95%）</th><th>預計成長率</th></tr></thead>
+      <thead><tr><th>年份</th><th>年初資產</th><th>投資增加</th><th>薪資儲蓄</th><th>年底資產</th></tr></thead>
       <tbody id="forecast-table-body"></tbody>
     </table>
-  </div>
-  <div class="chart-box">
-    <h3>模型說明</h3>
-    <div style="font-size:13px;color:#5F5E5A;line-height:2">
-      <div>📐 <b>模型</b>：遞減成長率回歸 — growth rate = a / (1 + b × asset)</div>
-      <div>📊 <b>資料</b>：158 筆歷史快照（2023/3 – 2026/9）</div>
-      <div>📉 <b>遞減效果</b>：資產越大，成長率自動降低</div>
-      <div>💰 <b>儲蓄</b>：依 Yearly sheet 預測值逐年累加（2027: 279萬 → 2031: 430萬）</div>
-      <div style="margin-top:6px;color:#888780;font-size:12px">±1σ 涵蓋約 68% 機率；±2σ 涵蓋約 95%</div>
-      <div style="color:#888780;font-size:12px">σ 隨時間拉長而擴大（不確定性累積）</div>
-    </div>
   </div>
 </div>
 
@@ -594,27 +615,48 @@ function renderSalary(){
       }}
   });
 
-  // YoY CAGR from Dynamic
+  // 年化資產成長率 from Dynamic — 2023 用起始日到年底年化；之後每年用實際天數年化
   const cagrYears=[],cagrVals=[],cagrColors=[];
   const dynSorted=snapshots.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const yearEnds={};
-  dynSorted.forEach(s=>{const y=s.date.slice(0,4);yearEnds[y]=s;});
-  const yk=Object.keys(yearEnds).sort();
-  for(let i=1;i<yk.length;i++){
-    const y=yk[i],py=yk[i-1];
-    const t=calcTotal(yearEnds[y]),pt=calcTotal(yearEnds[py]);
-    if(pt>0){
-      const g=((t/pt)-1)*100;
-      cagrYears.push(y);cagrVals.push(parseFloat(g.toFixed(1)));
-      cagrColors.push(g>=0?'#1D9E75':'#A32D2D');
+  if(dynSorted.length>1){
+    const yearEnds={};
+    dynSorted.forEach(s=>{const y=s.date.slice(0,4);yearEnds[y]=s;});
+    const yk=Object.keys(yearEnds).sort();
+    const firstSnap=dynSorted[0];
+
+    // First year: from actual start date to that year's last snapshot
+    if(yk.length>0){
+      const y0=yk[0];
+      const startVal=calcTotal(firstSnap);
+      const endVal=calcTotal(yearEnds[y0]);
+      const days=(new Date(yearEnds[y0].date)-new Date(firstSnap.date))/(1000*60*60*24);
+      const yrs=days/365.25;
+      if(yrs>0.05 && startVal>0){
+        const g=(Math.pow(endVal/startVal,1/yrs)-1)*100;
+        cagrYears.push(y0);cagrVals.push(parseFloat(g.toFixed(1)));
+        cagrColors.push(g>=0?'#1D9E75':'#A32D2D');
+      }
+    }
+
+    // Subsequent years: annualized using actual day count between year-end snapshots
+    for(let i=1;i<yk.length;i++){
+      const y=yk[i],py=yk[i-1];
+      const t=calcTotal(yearEnds[y]),pt=calcTotal(yearEnds[py]);
+      const days=(new Date(yearEnds[y].date)-new Date(yearEnds[py].date))/(1000*60*60*24);
+      const yrs=days/365.25;
+      if(pt>0 && yrs>0.05){
+        const g=(Math.pow(t/pt,1/yrs)-1)*100;
+        cagrYears.push(y);cagrVals.push(parseFloat(g.toFixed(1)));
+        cagrColors.push(g>=0?'#1D9E75':'#A32D2D');
+      }
     }
   }
   if(cagrChart)cagrChart.destroy();
   cagrChart=new Chart(document.getElementById('cagrChart'),{
     type:'bar',
-    data:{labels:cagrYears,datasets:[{label:'YoY %',data:cagrVals,backgroundColor:cagrColors,borderRadius:4}]},
+    data:{labels:cagrYears,datasets:[{label:'年化成長率',data:cagrVals,backgroundColor:cagrColors,borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.y.toFixed(1)}%`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.y.toFixed(1)}%/yr`}}},
       scales:{
         x:{ticks:{font:{size:11},color:'#888780'},grid:{display:false}},
         y:{ticks:{font:{size:10},color:'#888780',callback:v=>v+'%'},grid:{color:'rgba(0,0,0,0.05)'},
@@ -928,56 +970,53 @@ function renderExpTotal(){
   });
 }
 
-/* ── 預測分析（遞減成長率模型）── */
-// Model: growth_rate = a / (1 + b * asset), fitted on 158 data points
-// At 1,593萬: 57.6%/yr → At 5,000萬: 25.9%/yr → At 1億: 14.5%/yr
-const DR={a:1.21417406, b:7.3756141336e-8, sigma:0.055285};
+/* ── 預測分析（使用者自訂投資報酬率）── */
 const ANNUAL_SAVES={2027:2791159,2028:3326570,2029:3542207,2030:4048984,2031:4300000};
-
-function drRate(asset){return DR.a/(1+DR.b*asset);}
-
-function drForecast(startAsset,startDate,targetDate,sigmaM=0){
-  const dt=1/12;
-  const t0=new Date(startDate),t1=new Date(targetDate);
-  const months=Math.round((t1-t0)/(30.44*24*3600*1000));
-  if(months<=0)return startAsset;
-  let cur=startAsset;
-  const t0date=new Date(startDate);
-  for(let m=0;m<months;m++){
-    const d=new Date(t0date);d.setMonth(d.getMonth()+m);
-    const y=d.getFullYear();
-    const save=(ANNUAL_SAVES[y]||4300000)/12;
-    cur=cur*Math.exp(drRate(cur)*dt)+save;
-  }
-  return cur*Math.exp(sigmaM*DR.sigma*Math.sqrt(months));
-}
-
+let returnRate=0.12;   // 投資報酬率假設，預設12%
+let investRatio=0.75;  // 可投資部位佔總資產比例，預設75%
 let forecastChart=null;
 
-function renderForecast(){
-  const START=15931278, SDATE='2026-09-06';
-  const fcYears=[2027,2028,2029,2030,2031];
-  const fcData=fcYears.map(y=>({
-    y, x:`${y}-06-30`,
-    mid:drForecast(START,SDATE,`${y}-06-30`, 0),
-    lo1:drForecast(START,SDATE,`${y}-06-30`,-1),
-    hi1:drForecast(START,SDATE,`${y}-06-30`, 1),
-    lo2:drForecast(START,SDATE,`${y}-06-30`,-2),
-    hi2:drForecast(START,SDATE,`${y}-06-30`, 2),
-  }));
+function updateReturn(val){
+  returnRate=parseInt(val)/100;
+  document.getElementById('ret-slider').value=val;
+  document.getElementById('ret-val').textContent=val+'%';
+  renderForecast();
+}
+function updateRatio(val){
+  investRatio=parseInt(val)/100;
+  document.getElementById('ratio-slider').value=val;
+  document.getElementById('ratio-val').textContent=val+'%';
+  renderForecast();
+}
 
-  const d28=fcData[1],d30=fcData[3],d31=fcData[4];
-  const rNow=(drRate(START)*100).toFixed(1);
-  const r50M =(drRate(50e6)*100).toFixed(1);
-  const r100M=(drRate(100e6)*100).toFixed(1);
+// 逐年模擬：投資增加 = 年初資產 × 可投資比例 × 報酬率；年底資產 = 年初 + 投資增加 + 薪資儲蓄
+function simulateForecast(startAsset, startYear, endYear, rate, ratio){
+  const rows=[];
+  let cur=startAsset;
+  for(let y=startYear+1;y<=endYear;y++){
+    const startOfYear=cur;
+    const investPart=startOfYear*ratio;
+    const gain=investPart*rate;
+    const save=ANNUAL_SAVES[y]||4300000;
+    cur=startOfYear+gain+save;
+    rows.push({year:y, startAsset:startOfYear, gain, save, endAsset:cur});
+  }
+  return rows;
+}
+
+function renderForecast(){
+  const START=15931278;
+  const rows=simulateForecast(START, 2026, 2030, returnRate, investRatio);
+
+  const r2028=rows.find(r=>r.year===2028);
+  const r2030=rows.find(r=>r.year===2030);
 
   document.getElementById('forecast-cards').innerHTML=`
-    <div class="card"><div class="card-label">現在成長率</div><div class="card-value pos">${rNow}%/yr</div><div class="card-sub muted">資產 1,593萬時</div></div>
-    <div class="card"><div class="card-label">5,000萬時</div><div class="card-value">${r50M}%/yr</div><div class="card-sub muted">預計成長率</div></div>
-    <div class="card"><div class="card-label">1億時</div><div class="card-value">${r100M}%/yr</div><div class="card-sub muted">預計成長率</div></div>
-    <div class="card"><div class="card-label">2028 中位</div><div class="card-value pos">$${fmtK(d28.mid)}</div></div>
-    <div class="card"><div class="card-label">2030 中位</div><div class="card-value pos">$${fmtK(d30.mid)}</div><div class="card-sub muted">-2σ $${fmtK(d30.lo2)} ～ +2σ $${fmtK(d30.hi2)}</div></div>
-    <div class="card"><div class="card-label">2031 中位</div><div class="card-value pos">$${fmtK(d31.mid)}</div></div>`;
+    <div class="card"><div class="card-label">投資報酬率假設</div><div class="card-value pos">${(returnRate*100).toFixed(0)}%/yr</div><div class="card-sub muted">套用於 ${(investRatio*100).toFixed(0)}% 資產</div></div>
+    <div class="card"><div class="card-label">2027 年底</div><div class="card-value pos">$${fmtK(rows[0].endAsset)}</div></div>
+    <div class="card"><div class="card-label">2028 年底</div><div class="card-value pos">$${fmtK(r2028.endAsset)}</div></div>
+    <div class="card"><div class="card-label">2029 年底</div><div class="card-value pos">$${fmtK(rows.find(r=>r.year===2029).endAsset)}</div></div>
+    <div class="card"><div class="card-label">2030 年底</div><div class="card-value pos">$${fmtK(r2030.endAsset)}</div></div>`;
 
   const histData=[
     {x:'2023-03-30',y:2659204},{x:'2023-06-23',y:3508742},{x:'2023-12-25',y:4702050},
@@ -987,38 +1026,15 @@ function renderForecast(){
     {x:'2026-09-06',y:15931279},
   ];
 
-  // Model fit line over historical range
-  const fitLine=[];
-  for(let m=0;m<=43;m++){
-    const d=new Date('2023-03-30');d.setMonth(d.getMonth()+m);
-    const ds=d.toISOString().slice(0,10);
-    fitLine.push({x:ds,y:drForecast(2659204,'2023-03-30',ds,0)});
-  }
-
-  const anchor={x:SDATE,y:START};
+  const fcLine=[{x:'2026-12-31',y:START},...rows.map(r=>({x:`${r.year}-12-31`,y:r.endAsset}))];
 
   if(forecastChart)forecastChart.destroy();
   forecastChart=new Chart(document.getElementById('forecastChart'),{
     type:'line',
     data:{datasets:[
-      {label:'+2σ (95%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.hi2}))],
-        borderColor:'rgba(55,138,221,0.25)',backgroundColor:'rgba(55,138,221,0.06)',
-        borderWidth:1,borderDash:[3,3],fill:'+1',pointRadius:0,tension:0.4},
-      {label:'+1σ (68%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.hi1}))],
-        borderColor:'rgba(55,138,221,0.45)',backgroundColor:'rgba(55,138,221,0.10)',
-        borderWidth:1.5,borderDash:[4,3],fill:'+1',pointRadius:0,tension:0.4},
-      {label:'中位預測',data:[anchor,...fcData.map(d=>({x:d.x,y:d.mid}))],
-        borderColor:'#1D9E75',backgroundColor:'transparent',
-        borderWidth:2.5,fill:false,pointRadius:5,pointBackgroundColor:'#1D9E75',tension:0.4},
-      {label:'-1σ (68%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.lo1}))],
-        borderColor:'rgba(55,138,221,0.45)',backgroundColor:'rgba(55,138,221,0.10)',
-        borderWidth:1.5,borderDash:[4,3],fill:'-1',pointRadius:0,tension:0.4},
-      {label:'-2σ (95%)',data:[anchor,...fcData.map(d=>({x:d.x,y:d.lo2}))],
-        borderColor:'rgba(55,138,221,0.25)',backgroundColor:'rgba(55,138,221,0.06)',
-        borderWidth:1,borderDash:[3,3],fill:'-1',pointRadius:0,tension:0.4},
-      {label:'模型擬合',data:fitLine,
-        borderColor:'rgba(29,158,117,0.25)',backgroundColor:'transparent',
-        borderWidth:1,borderDash:[2,4],fill:false,pointRadius:0,tension:0.4},
+      {label:'預測',data:fcLine,
+        borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.06)',
+        borderWidth:2.5,fill:true,pointRadius:5,pointBackgroundColor:'#1D9E75',tension:0.3,borderDash:[6,3]},
       {label:'實際資產',data:histData,
         borderColor:'#2C2C2A',backgroundColor:'transparent',
         borderWidth:2,fill:false,pointRadius:3,pointBackgroundColor:'#2C2C2A',tension:0.3},
@@ -1027,10 +1043,7 @@ function renderForecast(){
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:false},
-        tooltip:{
-          filter:i=>['實際資產','中位預測','+1σ (68%)','-1σ (68%)','+2σ (95%)','-2σ (95%)'].includes(i.dataset.label),
-          callbacks:{title:it=>it[0].raw.x,label:c=>` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`}
-        },
+        tooltip:{callbacks:{title:it=>it[0].raw.x,label:c=>` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`}},
         zoom:{
           zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},
           pan:{enabled:true,mode:'x'},
@@ -1045,22 +1058,24 @@ function renderForecast(){
       }}
   });
 
-  // Detail table
-  const prevAsset = {2026: 15931278};
-  document.getElementById('forecast-table-body').innerHTML = fcData.map((d,i)=>{
-    const prevMid = i===0 ? 15931278 : fcData[i-1].mid;
-    const impliedRate = ((d.mid / prevMid) - 1) * 100;
-    const rateAtMid = (drRate(d.mid)*100).toFixed(1);
-    return`<tr>
-      <td><strong>${d.y}</strong></td>
-      <td class="muted">$${fmt(d.lo2)}</td>
-      <td class="muted">$${fmt(d.lo1)}</td>
-      <td class="pos"><strong>$${fmt(d.mid)}</strong></td>
-      <td class="muted">$${fmt(d.hi1)}</td>
-      <td class="muted">$${fmt(d.hi2)}</td>
-      <td style="color:#888780;font-size:12px">${rateAtMid}%/yr</td>
-    </tr>`;
-  }).join('');
+  document.getElementById('forecast-legend').innerHTML=`
+    <span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>
+    <span><span class="ld" style="background:#1D9E75"></span>預測（${(returnRate*100).toFixed(0)}% 報酬率假設）</span>`;
+
+  document.getElementById('forecast-table-body').innerHTML=rows.map(r=>`
+    <tr>
+      <td><strong>${r.year}</strong></td>
+      <td>$${fmt(r.startAsset)}</td>
+      <td class="pos">+$${fmt(r.gain)}</td>
+      <td class="pos">+$${fmt(r.save)}</td>
+      <td><strong>$${fmt(r.endAsset)}</strong></td>
+    </tr>`).join('');
+
+  document.getElementById('ret-slider').value=Math.round(returnRate*100);
+  document.getElementById('ret-val').textContent=Math.round(returnRate*100)+'%';
+  document.getElementById('ratio-slider').value=Math.round(investRatio*100);
+  document.getElementById('ratio-val').textContent=Math.round(investRatio*100)+'%';
+}
 
   document.getElementById('forecast-legend').innerHTML=`
     <span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>
