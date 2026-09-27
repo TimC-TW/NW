@@ -1077,14 +1077,6 @@ function renderForecast(){
   document.getElementById('ratio-val').textContent=Math.round(investRatio*100)+'%';
 }
 
-  document.getElementById('forecast-legend').innerHTML=`
-    <span><span class="ld" style="background:#2C2C2A"></span>實際資產</span>
-    <span><span class="ld" style="background:#1D9E75"></span>中位預測</span>
-    <span><span class="ld" style="background:rgba(55,138,221,0.45)"></span>±1σ（68%）</span>
-    <span><span class="ld" style="background:rgba(55,138,221,0.22)"></span>±2σ（95%）</span>
-    <span><span class="ld" style="background:rgba(29,158,117,0.22)"></span>模型擬合線</span>`;
-}
-
 renderOverview();
 document.getElementById('snap-date').value=new Date().toISOString().slice(0,10);
 </script>
