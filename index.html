@@ -1007,29 +1007,36 @@ function simulateForecast(startAsset, startYear, endYear, rate, ratio){
   return rows;
 }
 
+// 預測頁內建實際資產（無快照時的 fallback；有快照則自動用快照資料）
+const HIST_FALLBACK=[
+  {x:'2023-03-30',y:2659204},{x:'2023-06-23',y:3508742},{x:'2023-12-25',y:4702050},
+  {x:'2024-03-25',y:6192429},{x:'2024-07-01',y:6730189},{x:'2024-12-31',y:7900281},
+  {x:'2025-03-25',y:8173973},{x:'2025-06-25',y:9666414},{x:'2025-09-23',y:13459299},
+  {x:'2025-12-31',y:12807164},{x:'2026-03-25',y:15095931},{x:'2026-09-06',y:15931279},
+];
+
 function renderForecast(){
-  const START=15931278;
-  const rows=simulateForecast(START, 2026, 2030, returnRate, investRatio);
+  // 實際資產線：有快照就用快照（匯入新 JSON 自動更新），START 取最後一筆總額
+  let histData, START, lastYear;
+  if(snapshots.length){
+    const sorted=snapshots.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    histData=sorted.map(s=>({x:s.date,y:Math.round(calcTotal(s))}));
+    START=histData[histData.length-1].y;
+    lastYear=parseInt(histData[histData.length-1].x.slice(0,4));
+  }else{
+    histData=HIST_FALLBACK;
+    START=15931278;
+    lastYear=2026;
+  }
+  const rows=simulateForecast(START, lastYear, 2030, returnRate, investRatio);
 
-  const r2028=rows.find(r=>r.year===2028);
-  const r2030=rows.find(r=>r.year===2030);
-
+  const yearCards=rows.map(r=>`
+    <div class="card"><div class="card-label">${r.year} 年底</div><div class="card-value pos">$${fmtK(r.endAsset)}</div></div>`).join('');
   document.getElementById('forecast-cards').innerHTML=`
     <div class="card"><div class="card-label">投資報酬率假設</div><div class="card-value pos">${(returnRate*100).toFixed(0)}%/yr</div><div class="card-sub muted">套用於 ${(investRatio*100).toFixed(0)}% 資產</div></div>
-    <div class="card"><div class="card-label">2027 年底</div><div class="card-value pos">$${fmtK(rows[0].endAsset)}</div></div>
-    <div class="card"><div class="card-label">2028 年底</div><div class="card-value pos">$${fmtK(r2028.endAsset)}</div></div>
-    <div class="card"><div class="card-label">2029 年底</div><div class="card-value pos">$${fmtK(rows.find(r=>r.year===2029).endAsset)}</div></div>
-    <div class="card"><div class="card-label">2030 年底</div><div class="card-value pos">$${fmtK(r2030.endAsset)}</div></div>`;
+    ${yearCards}`;
 
-  const histData=[
-    {x:'2023-03-30',y:2659204},{x:'2023-06-23',y:3508742},{x:'2023-12-25',y:4702050},
-    {x:'2024-03-25',y:6192429},{x:'2024-07-01',y:6730189},{x:'2024-12-31',y:7900281},
-    {x:'2025-03-25',y:8173973},{x:'2025-06-25',y:9666414},{x:'2025-09-23',y:13459299},
-    {x:'2025-12-31',y:12807164},{x:'2026-03-25',y:15095931},{x:'2026-06-25',y:17611932},
-    {x:'2026-09-06',y:15931279},
-  ];
-
-  const fcLine=[{x:'2026-12-31',y:START},...rows.map(r=>({x:`${r.year}-12-31`,y:r.endAsset}))];
+  const fcLine=[{x:`${lastYear}-12-31`,y:START},...rows.map(r=>({x:`${r.year}-12-31`,y:r.endAsset}))];
 
   if(forecastChart)forecastChart.destroy();
   forecastChart=new Chart(document.getElementById('forecastChart'),{
@@ -1043,7 +1050,7 @@ function renderForecast(){
         borderWidth:2,fill:false,pointRadius:3,pointBackgroundColor:'#2C2C2A',tension:0.3},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
+      interaction:{mode:'nearest',intersect:false},
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{title:it=>it[0].raw.x,label:c=>` ${c.dataset.label}: $${fmt(c.parsed.y)} NTD`}},
