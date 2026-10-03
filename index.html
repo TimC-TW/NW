@@ -326,9 +326,12 @@ const INVEST=[
   {year:'2023',nextYearMarketValUSD:71749, costUSD:47819, usProfitUSD:33046, usCAGR:1.854, twProfit:2782, dividend:6640, sum:1050371},
   {year:'2024',nextYearMarketValUSD:120235, costUSD:47819, usProfitUSD:48486, usCAGR:1.676, twProfit:72216, dividend:79640, sum:1679165},
   {year:'2025',nextYearMarketValUSD:241018, costUSD:97232, usProfitUSD:66133, usCAGR:1.421, twProfit:3739, dividend:17790, sum:2104718},
-  {year:'2026',nextYearMarketValUSD:314000, costUSD:110618, usProfitUSD:59596, usCAGR:1.247, twProfit:-80000, dividend:0, sum:1797274},
+  {year:'2026',nextYearMarketValUSD:333301, costUSD:110618, usProfitUSD:78897, usCAGR:1.3273, twProfit:200000, dividend:0, sum:2724704},
 ];
-const USD2NTD=32.5;
+const USD2NTD=32;
+
+// 年度獲利（Sum）統一用 32 自動計算：美股獲利 USD→NTD + 台股交易獲利 + 配息
+INVEST.forEach(r=>{r.sum=Math.round((r.usProfitUSD||0)*USD2NTD+(r.twProfit||0)+(r.dividend||0));});
 
 let usStockChart=null;
 
@@ -416,7 +419,7 @@ function renderOverview(){
   const TWD_KEYS=['台股','台幣','小胖台幣 房子','小柏台幣'];
   const RMB_KEYS=['台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣'];
   const RMB2NTD=4.43;
-  const usdToNTD=v=>v*32.5;
+  const usdToNTD=v=>v*32;
   const liquidUSD=USD_KEYS.reduce((s,k)=>s+Math.max(0,last[k]||0),0);
   const liquidTWD=TWD_KEYS.reduce((s,k)=>s+(last[k]||0),0);
   const liquidRMB=RMB_KEYS.reduce((s,k)=>s+Math.max(0,last[k]||0),0);
@@ -441,7 +444,7 @@ function renderOverview(){
 
   // Asset allocation - USD keys converted to NTD
   const majorAssets=[
-    {label:'美金總額',value:Math.max(0,['美股','RSU','美金'].reduce((s,k)=>s+(last[k]||0),0)*32.5)},
+    {label:'美金總額',value:Math.max(0,['美股','RSU','美金'].reduce((s,k)=>s+(last[k]||0),0)*32)},
     {label:'台幣總額',value:Math.max(0,['台股','台幣','小胖台幣 房子','小柏台幣'].reduce((s,k)=>s+(last[k]||0),0))},
     {label:'車子',value:Math.max(0,last['車🚗']||0)},
     {label:'房子',value:Math.max(0,last['房子🏠']||0)}
@@ -708,7 +711,7 @@ function renderHistory(){
     const liquidUSD2=['美股','RSU','美金'].reduce((a,k)=>a+Math.max(0,s[k]||0),0);
     const liquidTWD2=['台股','台幣','小胖台幣 房子','小柏台幣'].reduce((a,k)=>a+(s[k]||0),0);
     const liquidRMB2=['台灣的人民幣','中國人民幣(bank)','小胖人民幣/台幣'].reduce((a,k)=>a+Math.max(0,s[k]||0),0);
-    const liquid=liquidUSD2*32.5+liquidTWD2+liquidRMB2*4.43;
+    const liquid=liquidUSD2*32+liquidTWD2+liquidRMB2*4.43;
     const fixed=Math.max(0,s['房子🏠']||0)+Math.max(0,s['車🚗']||0);
     const debt=DEBT_KEYS.reduce((a,k)=>a+Math.abs(s[k]||0),0);
     return`<tr>
